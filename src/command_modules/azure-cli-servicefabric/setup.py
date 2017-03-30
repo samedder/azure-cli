@@ -33,16 +33,16 @@ with open('HISTORY.rst', 'r', encoding='utf-8') as f:
     HISTORY = f.read()
 
 setup(
-    name='azure-cli-example',
+    name='azure-cli-servicefabric',
     version=VERSION,
-    description='Microsoft Azure Command-Line Tools Example Command Module',
+    description='Microsoft Azure Service Fabric Command-Line Module',
     long_description=README + '\n\n' + HISTORY,
     license='MIT',
     author='Microsoft Corporation',
-    author_email='azpycli@microsoft.com',
+    author_email='edwardsa@microsoft.com',
     url='https://github.com/Azure/azure-cli',
     classifiers=CLASSIFIERS,
-    namespace_packages = [
+    namespace_packages=[
         'azure',
         'azure.cli',
         'azure.cli.command_modules',
