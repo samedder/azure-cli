@@ -6,4 +6,4 @@
 # pylint: disable=line-too-long
 
 from azure.cli.core.commands import register_cli_argument
-s
+
