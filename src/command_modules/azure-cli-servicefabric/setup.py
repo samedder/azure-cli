@@ -25,6 +25,7 @@ CLASSIFIERS = [
 ]
 
 DEPENDENCIES = [
+    # 'azure-servicefabric'
 ]
 
 with open('README.rst', 'r', encoding='utf-8') as f:
@@ -35,7 +36,7 @@ with open('HISTORY.rst', 'r', encoding='utf-8') as f:
 setup(
     name='azure-cli-servicefabric',
     version=VERSION,
-    description='Microsoft Azure Service Fabric Command-Line Module',
+    description='Microsoft Azure Service Fabric Command-Line Tools',
     long_description=README + '\n\n' + HISTORY,
     license='MIT',
     author='Microsoft Corporation',
@@ -48,7 +49,7 @@ setup(
         'azure.cli.command_modules',
     ],
     packages=[
-        'azure.cli.command_modules.example',
+        'azure.cli.command_modules.servicefabric',
     ],
     install_requires=DEPENDENCIES,
 )
