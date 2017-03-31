@@ -6,8 +6,3 @@
 from azure.cli.core.help_files import helps
 
 # pylint: disable=line-too-long
-
-helps['example'] = """
-            type: group
-            short-summary: Example group description.
-            """
