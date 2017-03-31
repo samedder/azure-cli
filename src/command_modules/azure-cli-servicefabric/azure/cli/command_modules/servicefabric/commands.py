@@ -7,4 +7,4 @@
 
 from azure.cli.core.commands import cli_command
 
-cli_command(__name__, 'servicefabric application-health', 'azure.servicefabric#get_application_health')
+cli_command(__name__, 'sf application-health', 'azure.servicefabric.AzureServiceFabricClientAPIs#get_application_health')
