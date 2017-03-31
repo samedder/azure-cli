@@ -5,6 +5,6 @@
 
 #pylint: disable=line-too-long
 
-from azure.core.cli.commands import cli_command
+from azure.cli.core.commands import cli_command
 
 cli_command(__name__, 'servicefabric application-health', 'azure.servicefabric#get_application_health')
