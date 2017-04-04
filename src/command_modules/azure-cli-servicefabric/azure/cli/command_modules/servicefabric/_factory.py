@@ -5,4 +5,5 @@
 
 def cf_sf_client(_):
     from azure.servicefabric import AzureServiceFabricClientAPIs
-    return AzureServiceFabricClientAPIs(False,'http://localhost:19080') 
+    from azure.cli.command_modules.servicefabric.custom import sf_get_connection_endpoint
+    return AzureServiceFabricClientAPIs(False, sf_get_connection_endpoint())
