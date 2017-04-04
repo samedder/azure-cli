@@ -15,7 +15,11 @@ cli_command(__name__, 'sf application health', 'azure.servicefabric#AzureService
 # Node commands
 
 cli_command(__name__, 'sf node remove-state', 'azure.servicefabric#AzureServiceFabricClientAPIs.remove_node_state', cf_sf_client)
+cli_command(__name__, 'sf node stop', 'azure.servicefabric#AzureServiceFabricClientAPIs.stop_node', cf_sf_client)
+cli_command(__name__, 'sf node restart', 'azure.servicefabric#AzureServiceFabricClientAPIs.restart_node', cf_sf_client)
+cli_command(__name__, 'sf node start', 'azure.servicefabric#AzureServiceFabricClientAPIs.start_node', cf_sf_client)
 
 # Cluster commands
 
 cli_command(__name__, 'sf cluster connect', 'azure.cli.command_modules.servicefabric.custom#sf_update_connection_endpoint')
+cli_command(__name__, 'sf cluster manifest', 'azure.servicefabric#AzureServiceFabricClientAPIs.get_cluster_manifest')
