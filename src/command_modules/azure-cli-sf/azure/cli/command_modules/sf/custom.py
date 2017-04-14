@@ -18,6 +18,8 @@ def sf_update_connection_endpoint(endpoint):
     :param endpoint: The new endpoint url of a Service Fabric cluster
     :type endpoint: String
     """
+
+    # Trivial change
     set_global_config_value('servicefabric', 'endpoint', endpoint)
 
 def sf_get_connection_endpoint():
