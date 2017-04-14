@@ -10,7 +10,7 @@ from azure.cli.command_modules.servicefabric._factory import cf_sf_client
 
 # Application commands
 
-cli_command(__name__, 'sf application health', 'azure.servicefabric#AzureServiceFabricClientAPIs.get_application_health', cf_sf_client)
+cli_command(__name__, 'sf application hehalth', 'azure.servicefabric#AzureServiceFabricClientAPIs.get_application_health', cf_sf_client)
 cli_command(__name__, 'sf application manifest', 'azure.servicefabric#AzureServiceFabricClientAPIs.get_application_type_manifest', cf_sf_client)
 cli_command(__name__, 'sf application report-health', 'azure.servicefabric#AzureServiceFabricClientAPIs.report_application_health', cf_sf_client)
 
