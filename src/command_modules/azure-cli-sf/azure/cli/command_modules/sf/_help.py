@@ -9,17 +9,17 @@ from azure.cli.core.help_files import helps
 
 helps['sf'] = """
      type: group
-     short-summary: Manage Service Fabric clusters and perform cluster operations
+     short-summary: Manage and administer a Service Fabric cluster
 """
 helps['sf cluster'] = """
     type: group
-    short-summary: Connect to and manage entire Service Fabric clusters
+    short-summary: Connect to and manage a Service Fabric cluster
 """
 helps['sf node'] = """
     type: group
-    short-summary: Manage the nodes that form a Service Fabric cluster
+    short-summary: Manage the nodes that create a Service Fabric cluster
 """
 helps['sf application'] = """
     type: group
-    short-summary: Manage the applications running in a Service Fabric cluster
+    short-summary: Manage the applications running on a Service Fabric cluster
 """
