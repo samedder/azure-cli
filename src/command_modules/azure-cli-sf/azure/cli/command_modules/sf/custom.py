@@ -5,10 +5,9 @@
 
 import azure.cli.core.azlogging as azlogging
 from azure.cli.core._config import az_config, set_global_config_value
-from azure.cli.core._util import CLIError
+
 
 logger = azlogging.get_az_logger(__name__)
-
 
 def sf_update_connection_endpoint(endpoint):
     """
@@ -19,22 +18,16 @@ def sf_update_connection_endpoint(endpoint):
     :type endpoint: String
     """
 
-    # Trivial change
     set_global_config_value('servicefabric', 'endpoint', endpoint)
 
 def sf_get_connection_endpoint():
-    endpoint_url = az_config.get('servicefabric', 'endpoint', fallback=None)
-    if endpoint_url is not None:
-        return endpoint_url
-    else:
-        raise CLIError('Service Fabric cluster endpoint not set, connect to a cluster first')
+    return az_config.get('servicefabric', 'endpoint', fallback=None)
 
-# Store string inside az_config.set and az_config.get
+def sf_get_cert_info():
+    cert_path = az_config.get('servicefabric', 'cert_path', fallback=None)
+    password_protected = az_config.get('servicefabric', 'cert_path', fallback=False)
+    return (cert_path, password_protected)
 
-# Add client argument to custom command
-
-# SF client operation action ->
-# Create factory in _factory
-# Factory creates client instance
-# Uses config to pull down connection string
-# Returns client to perform API
+def sf_set_cert_info(path, password_protected=False):
+    set_global_config_value('servicefabric', 'cert_path', path)
+    set_global_config_value('servicefabric', 'cert_password', password_protected)
