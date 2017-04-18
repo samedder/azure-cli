@@ -4,8 +4,8 @@
 # --------------------------------------------------------------------------------------------
 
 def load_params(_):
-    import azure.cli.command_modules.servicefabric._params #pylint: disable=redefined-outer-name
+    import azure.cli.command_modules.sf._params #pylint: disable=redefined-outer-name
 
 
 def load_commands():
-    import azure.cli.command_modules.servicefabric.commands #pylint: disable=redefined-outer-name
+    import azure.cli.command_modules.sf.commands #pylint: disable=redefined-outer-name
