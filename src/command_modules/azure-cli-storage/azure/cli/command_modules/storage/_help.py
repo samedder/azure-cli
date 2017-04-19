@@ -81,6 +81,11 @@ helps['storage container create'] = """
           text: az storage container create -n MyStorageContainer --fail-on-exist
 """
 
+helps['storage account create'] = """
+    type: command
+    short-summary: Create a storage account.
+"""
+
 helps['storage account list'] = """
     type: command
     short-summary: Lists storage accounts
@@ -175,6 +180,12 @@ helps['storage blob copy'] = """
     type: group
     short-summary: Manage blob copy operations.
 """
+
+helps['storage blob incremental-copy'] = """
+    type: group
+    short-summary: Manage blob incremental copy operations.
+"""
+
 helps['storage blob lease'] = """
     type: group
     short-summary: Manage storage blob leases.

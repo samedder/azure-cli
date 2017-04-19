@@ -11,7 +11,7 @@ import os
 from azure.cli.core.commands.arm import is_valid_resource_id, resource_id
 from azure.cli.core.commands.validators import \
     (validate_tags, get_default_location_from_resource_group)
-from azure.cli.core._util import CLIError
+from azure.cli.core.util import CLIError
 from azure.cli.core.commands.template_create import get_folded_parameter_validator
 from azure.cli.core.commands.validators import SPECIFIED_SENTINEL
 from azure.cli.core.commands.client_factory import get_subscription_id
@@ -106,7 +106,6 @@ def validate_cert(namespace):
     params = [namespace.cert_data, namespace.cert_password]
     if all([not x for x in params]):
         # no cert supplied -- use HTTP
-        namespace.http_listener_protocol = 'http'
         if not namespace.frontend_port:
             namespace.frontend_port = 80
     else:
@@ -122,7 +121,6 @@ def validate_cert(namespace):
             # change default to frontend port 443 for https
             if not namespace.frontend_port:
                 namespace.frontend_port = 443
-            namespace.http_listener_protocol = 'https'
         except AttributeError:
             # app-gateway ssl-cert create does not have these fields and that is okay
             pass
@@ -176,15 +174,24 @@ def get_public_ip_validator(has_type_field=False, allow_none=False, allow_new=Fa
     for an existing name or ID with no ARM-required -type parameter. """
     def simple_validator(namespace):
         if namespace.public_ip_address:
-            # determine if public_ip_address is name or ID
-            is_id = is_valid_resource_id(namespace.public_ip_address)
-            if not is_id:
-                namespace.public_ip_address = resource_id(
+            is_list = isinstance(namespace.public_ip_address, list)
+
+            def _validate_name_or_id(public_ip):
+                # determine if public_ip_address is name or ID
+                is_id = is_valid_resource_id(public_ip)
+                return public_ip if is_id else resource_id(
                     subscription=get_subscription_id(),
                     resource_group=namespace.resource_group_name,
                     namespace='Microsoft.Network',
                     type='publicIPAddresses',
-                    name=namespace.public_ip_address)
+                    name=public_ip)
+
+            if is_list:
+                for i, public_ip in enumerate(namespace.public_ip_address):
+                    namespace.public_ip_address[i] = _validate_name_or_id(public_ip)
+            else:
+                namespace.public_ip_address = _validate_name_or_id(namespace.public_ip_address)
+
 
     def complex_validator_with_type(namespace):
         get_folded_parameter_validator(
@@ -226,6 +233,7 @@ def get_subnet_validator(has_type_field=False, allow_none=False, allow_new=False
                 child_name=namespace.subnet)
 
     def complex_validator_with_type(namespace):
+
         get_folded_parameter_validator(
             'subnet', 'subnets', '--subnet',
             'virtual_network_name', 'Microsoft.Network/virtualNetworks', '--vnet-name',
@@ -260,9 +268,9 @@ def validate_servers(namespace):
     for item in namespace.servers if namespace.servers else []:
         try:
             socket.inet_aton(item) #pylint:disable=no-member
-            servers.append(ApplicationGatewayBackendAddress(ip_address=item))
+            servers.append({'ipAddress':item})
         except socket.error: #pylint:disable=no-member
-            servers.append(ApplicationGatewayBackendAddress(fqdn=item))
+            servers.append({'fqdn':item})
     namespace.servers = servers
 
 def get_virtual_network_validator(has_type_field=False, allow_none=False, allow_new=False,
@@ -350,6 +358,8 @@ def process_ag_url_path_map_rule_create_namespace(namespace): # pylint: disable=
 
 def process_ag_create_namespace(namespace):
 
+    get_default_location_from_resource_group(namespace)
+
     # process folded parameters
     if namespace.subnet or namespace.virtual_network_name:
         get_subnet_validator(has_type_field=True, allow_new=True)(namespace)
@@ -371,13 +381,6 @@ def process_ag_create_namespace(namespace):
     if namespace.public_ip_address:
         get_public_ip_validator(
             has_type_field=True, allow_none=True, allow_new=True, default_none=True)(namespace)
-        namespace.frontend_type = 'publicIp'
-    else:
-        namespace.frontend_type = 'privateIp'
-        namespace.private_ip_address_allocation = 'Static' if namespace.private_ip_address \
-            else 'Dynamic'
-
-    namespace.sku_tier = namespace.sku_name.split('_', 1)[0]
 
     validate_cert(namespace)
 
@@ -386,6 +389,8 @@ def process_auth_create_namespace(namespace):
     namespace.authorization_parameters = ExpressRouteCircuitAuthorization()
 
 def process_lb_create_namespace(namespace):
+
+    get_default_location_from_resource_group(namespace)
 
     if namespace.subnet and namespace.public_ip_address:
         raise ValueError(
@@ -397,23 +402,18 @@ def process_lb_create_namespace(namespace):
         get_subnet_validator(
             has_type_field=True, allow_new=True, allow_none=True, default_none=True)(namespace)
 
-        validate_private_ip_address(namespace)
-
-        namespace.public_ip_address_type = 'none'
+        namespace.public_ip_address_type = None
         namespace.public_ip_address = None
 
     else:
         # validation for internet facing load balancer
         get_public_ip_validator(has_type_field=True, allow_none=True, allow_new=True)(namespace)
 
-        if namespace.public_ip_dns_name:
-            if namespace.public_ip_address_type != 'new':
-                raise CLIError(
-                    'specify --public-ip-dns-name only if creating a new public IP address.')
-            else:
-                namespace.dns_name_type = 'new'
+        if namespace.public_ip_dns_name and namespace.public_ip_address_type != 'new':
+            raise CLIError(
+                'specify --public-ip-dns-name only if creating a new public IP address.')
 
-        namespace.subnet_type = 'none'
+        namespace.subnet_type = None
         namespace.subnet = None
         namespace.virtual_network_name = None
 
@@ -530,10 +530,27 @@ def process_vnet_create_namespace(namespace):
 def process_vnet_gateway_create_namespace(namespace):
     ns = namespace
     get_default_location_from_resource_group(ns)
+    get_virtual_network_validator()(ns)
+
+    get_public_ip_validator()(ns)
+    public_ip_count = len(ns.public_ip_address or [])
+    if public_ip_count > 2:
+        raise CLIError('Specify a single public IP to create an active-standby gateway or two '
+                       'public IPs to create an active-active gateway.')
+
     enable_bgp = any([ns.asn, ns.bgp_peering_address, ns.peer_weight])
     if enable_bgp and not ns.asn:
         raise ValueError(
             'incorrect usage: --asn ASN [--peer-weight WEIGHT --bgp-peering-address IP ]')
+
+def process_vnet_gateway_update_namespace(namespace):
+    ns = namespace
+    get_virtual_network_validator()(ns)
+    get_public_ip_validator()(ns)
+    public_ip_count = len(ns.public_ip_address or [])
+    if public_ip_count > 2:
+        raise CLIError('Specify a single public IP to create an active-standby gateway or two '
+                       'public IPs to create an active-active gateway.')
 
 def process_vpn_connection_create_namespace(namespace):
 

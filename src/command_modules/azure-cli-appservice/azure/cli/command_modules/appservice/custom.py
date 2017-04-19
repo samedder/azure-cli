@@ -21,12 +21,12 @@ from azure.mgmt.web.models import (Site, SiteConfig, User, AppServicePlan,
                                    RestoreRequest, FrequencyUnit, Certificate, HostNameSslState)
 
 from azure.cli.core.commands.client_factory import get_mgmt_service_client
-from azure.cli.core.commands.arm import parse_resource_id
+from azure.cli.core.commands.arm import is_valid_resource_id, parse_resource_id
 from azure.cli.core.commands import LongRunningOperation
 
 from azure.cli.core.prompting import prompt_pass, NoTTYException
 import azure.cli.core.azlogging as azlogging
-from azure.cli.core._util import CLIError
+from azure.cli.core.util import CLIError
 from ._params import web_client_factory, _generic_site_operation
 
 logger = azlogging.get_az_logger(__name__)
@@ -64,19 +64,12 @@ class AppServiceLongRunningOperation(LongRunningOperation):  # pylint: disable=t
             return ex
 
 
-def create_webapp(resource_group_name, name,
-                  plan=None, create_plan=False,
-                  sku=None, is_linux=False, number_of_workers=None,
-                  location=None):
+def create_webapp(resource_group_name, name, plan):
     client = web_client_factory()
-    plan_id = plan
-    if create_plan:
-        logger.warning("Create appservice plan: '%s'", plan)
-        result = create_app_service_plan(resource_group_name, plan, is_linux,
-                                         sku or 'S1', number_of_workers or 1, location)
-        plan_id = result.id
-
-    webapp_def = Site(server_farm_id=plan_id, location=location)
+    if is_valid_resource_id(plan):
+        plan = parse_resource_id(plan)['name']
+    location = _get_location_from_app_service_plan(client, resource_group_name, plan)
+    webapp_def = Site(server_farm_id=plan, location=location)
     poller = client.web_apps.create_or_update(resource_group_name, name, webapp_def)
     return AppServiceLongRunningOperation()(poller)
 
@@ -89,9 +82,9 @@ def show_webapp(resource_group_name, name, slot=None):
 def list_webapp(resource_group_name=None):
     client = web_client_factory()
     if resource_group_name:
-        result = client.web_apps.list_by_resource_group(resource_group_name)
+        result = list(client.web_apps.list_by_resource_group(resource_group_name))
     else:
-        result = client.web_apps.list()
+        result = list(client.web_apps.list())
     for webapp in result:
         _rename_server_farm_props(webapp)
     return result
@@ -408,9 +401,9 @@ def _extract_real_error(ex):
 def list_app_service_plans(resource_group_name=None):
     client = web_client_factory()
     if resource_group_name is None:
-        plans = client.app_service_plans.list()
+        plans = list(client.app_service_plans.list())
     else:
-        plans = client.app_service_plans.list_by_resource_group(resource_group_name)
+        plans = list(client.app_service_plans.list_by_resource_group(resource_group_name))
     for plan in plans:
         # prune a few useless fields
         del plan.app_service_plan_name
@@ -419,13 +412,22 @@ def list_app_service_plans(resource_group_name=None):
     return plans
 
 
+def _linux_sku_check(sku):
+    tier = _get_sku_name(sku)
+    if tier in ['BASIC', 'STANDARD']:
+        return
+    format_string = 'usage error: {0} is not a valid sku for linux plan, please use one of the following: {1}'  # pylint: disable=line-too-long
+    raise CLIError(format_string.format(sku, 'B1, B2, B3, S1, S2, S3'))
+
+
 def create_app_service_plan(resource_group_name, name, is_linux, sku='B1', number_of_workers=None,
                             location=None):
     client = web_client_factory()
     sku = _normalize_sku(sku)
     if location is None:
         location = _get_location_from_resource_group(resource_group_name)
-
+    if is_linux:
+        _linux_sku_check(sku)
     # the api is odd on parameter naming, have to live with it for now
     sku_def = SkuDescription(tier=_get_sku_name(sku), name=sku, capacity=number_of_workers)
     plan_def = AppServicePlan(location, app_service_plan_name=name,
@@ -612,7 +614,7 @@ def _get_sku_name(tier):
 
 
 def _get_location_from_resource_group(resource_group_name):
-    from azure.mgmt.resource.resources import ResourceManagementClient
+    from azure.mgmt.resource import ResourceManagementClient
     client = get_mgmt_service_client(ResourceManagementClient)
     group = client.resource_groups.get(resource_group_name)
     return group.location
@@ -755,7 +757,7 @@ def config_slot_auto_swap(resource_group_name, webapp, slot, auto_swap_slot=None
 
 def list_slots(resource_group_name, webapp):
     client = web_client_factory()
-    slots = client.web_apps.list_slots(resource_group_name, webapp)
+    slots = list(client.web_apps.list_slots(resource_group_name, webapp))
     for slot in slots:
         slot.name = slot.name.split('/')[-1]
         setattr(slot, 'app_service_plan', parse_resource_id(slot.server_farm_id)['name'])
@@ -849,6 +851,7 @@ def _stream_trace(streaming_url, user_name, password):
 def upload_ssl_cert(resource_group_name, name, certificate_password, certificate_file):
     client = web_client_factory()
     webapp = _generic_site_operation(resource_group_name, name, 'get')
+    cert_resource_group_name = parse_resource_id(webapp.server_farm_id)['resource_group']
     cert_file = open(certificate_file, 'rb')
     cert_contents = cert_file.read()
     hosting_environment_profile_param = webapp.hosting_environment_profile
@@ -857,10 +860,10 @@ def upload_ssl_cert(resource_group_name, name, certificate_password, certificate
 
     thumb_print = _get_cert(certificate_password, certificate_file)
     cert_name = _generate_cert_name(thumb_print, hosting_environment_profile_param,
-                                    webapp.location, resource_group_name)
+                                    webapp.location, cert_resource_group_name)
     cert = Certificate(password=certificate_password, pfx_blob=cert_contents,
                        location=webapp.location)
-    return client.certificates.create_or_update(resource_group_name, cert_name, cert)
+    return client.certificates.create_or_update(cert_resource_group_name, cert_name, cert)
 
 
 def _generate_cert_name(thumb_print, hosting_environment, location, resource_group_name):
@@ -905,7 +908,8 @@ def _update_host_name_ssl_state(resource_group_name, webapp_name, location,
 def _update_ssl_binding(resource_group_name, name, certificate_thumbprint, ssl_type, slot=None):
     client = web_client_factory()
     webapp = client.web_apps.get(resource_group_name, name)
-    webapp_certs = client.certificates.list_by_resource_group(resource_group_name)
+    cert_resource_group_name = parse_resource_id(webapp.server_farm_id)['resource_group']
+    webapp_certs = client.certificates.list_by_resource_group(cert_resource_group_name)
     for webapp_cert in webapp_certs:
         if webapp_cert.thumbprint == certificate_thumbprint:
             if len(webapp_cert.host_names) == 1 and not webapp_cert.host_names[0].startswith('*'):

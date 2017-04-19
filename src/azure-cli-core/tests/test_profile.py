@@ -11,10 +11,10 @@ import mock
 
 from adal import AdalError
 from azure.mgmt.resource.subscriptions.models import (SubscriptionState, Subscription,
-                                                      SubscriptionPolicies, spendingLimit)
+                                                      SubscriptionPolicies, SpendingLimit)
 from azure.cli.core._profile import (Profile, CredsCache, SubscriptionFinder,
                                      ServicePrincipalAuth, CLOUD)
-from azure.cli.core._util import CLIError
+from azure.cli.core.util import CLIError
 
 
 class Test_Profile(unittest.TestCase):  # pylint: disable=too-many-public-methods
@@ -238,8 +238,12 @@ class Test_Profile(unittest.TestCase):  # pylint: disable=too-many-public-method
         storage_mock = {'subscriptions': []}
         profile = Profile(storage_mock)
         profile._management_resource_uri = 'https://management.core.windows.net/'
-        profile._subscription_finder = finder
-        profile.find_subscriptions_on_login(False, '1234', 'my-secret', True, self.tenant_id)
+        profile.find_subscriptions_on_login(False,
+                                            '1234',
+                                            'my-secret',
+                                            True,
+                                            self.tenant_id,
+                                            finder)
         # action
         extended_info = profile.get_expanded_subscription_info()
         # assert
@@ -310,7 +314,6 @@ class Test_Profile(unittest.TestCase):  # pylint: disable=too-many-public-method
         token_type, token = cred._token_retriever()
         self.assertEqual(token, self.raw_token1)
         self.assertEqual(some_token_type, token_type)
-        self.assertEqual(mock_read_cred_file.call_count, 1)
         mock_get_token.assert_called_once_with(mock.ANY, self.user1, self.tenant_id,
                                                'https://management.core.windows.net/')
         self.assertEqual(mock_get_token.call_count, 1)
@@ -535,7 +538,7 @@ class Test_Profile(unittest.TestCase):  # pylint: disable=too-many-public-method
         creds_cache = CredsCache()
 
         # assert
-        token_entries = [entry for _, entry in creds_cache.adal_token_cache.read_items()]
+        token_entries = [entry for _, entry in creds_cache.load_adal_token_cache().read_items()]
         self.assertEqual(token_entries, [self.token_entry1])
         self.assertEqual(creds_cache._service_principal_creds, [test_sp])
 
@@ -550,6 +553,7 @@ class Test_Profile(unittest.TestCase):  # pylint: disable=too-many-public-method
 
         # action
         creds_cache = CredsCache()
+        creds_cache.load_adal_token_cache()
 
         # assert
         self.assertEqual(creds_cache._service_principal_creds, [test_sp])
@@ -580,6 +584,25 @@ class Test_Profile(unittest.TestCase):  # pylint: disable=too-many-public-method
         self.assertEqual(token_entries, [self.token_entry1])
         self.assertEqual(creds_cache._service_principal_creds, [test_sp, test_sp2])
         mock_open_for_write.assert_called_with(mock.ANY, 'w+')
+
+    @mock.patch('azure.cli.core._profile._load_tokens_from_file', autospec=True)
+    @mock.patch('os.fdopen', autospec=True)
+    @mock.patch('os.open', autospec=True)
+    def test_credscache_add_preexisting_sp_creds(self, _, mock_open_for_write, mock_read_file):
+        test_sp = {
+            "servicePrincipalId": "myapp",
+            "servicePrincipalTenant": "mytenant",
+            "accessToken": "Secret"
+        }
+        mock_open_for_write.return_value = FileHandleStub()
+        mock_read_file.return_value = [test_sp]
+        creds_cache = CredsCache()
+
+        # action
+        creds_cache.save_service_principal_cred(test_sp)
+
+        # assert
+        self.assertEqual(creds_cache._service_principal_creds, [test_sp])
 
     @mock.patch('azure.cli.core._profile._load_tokens_from_file', autospec=True)
     @mock.patch('os.fdopen', autospec=True)
@@ -687,7 +710,7 @@ class SubscriptionStub(Subscription):  # pylint: disable=too-few-public-methods
 
     def __init__(self, id, display_name, state, tenant_id):  # pylint: disable=redefined-builtin,
         policies = SubscriptionPolicies()
-        policies.spending_limit = spendingLimit.current_period_off
+        policies.spending_limit = SpendingLimit.current_period_off
         policies.quota_id = 'some quota'
         super(SubscriptionStub, self).__init__(policies, 'some_authorization_source')
         self.id = id

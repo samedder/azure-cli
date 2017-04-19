@@ -6,25 +6,20 @@
 #pylint: disable=line-too-long
 
 def _network_client_factory(**_):
-    from azure.mgmt.network import NetworkManagementClient
+    from azure.cli.core.profiles import ResourceType
     from azure.cli.core.commands.client_factory import get_mgmt_service_client
-    return get_mgmt_service_client(NetworkManagementClient)
+    return get_mgmt_service_client(ResourceType.MGMT_NETWORK)
 
 
 def resource_client_factory(**_):
     from azure.mgmt.resource import ResourceManagementClient
     from azure.cli.core.commands.client_factory import get_mgmt_service_client
-    return get_mgmt_service_client(ResourceManagementClient)
+    from azure.cli.core.profiles import ResourceType
+    return get_mgmt_service_client(ResourceType.MGMT_RESOURCE_RESOURCES)
 
 
 def cf_application_gateways(_):
     return _network_client_factory().application_gateways
-
-
-def cf_application_gateway_create(_):
-    from azure.cli.command_modules.network.mgmt_app_gateway.lib import AppGatewayCreationClient
-    from azure.cli.core.commands.client_factory import get_mgmt_service_client
-    return get_mgmt_service_client(AppGatewayCreationClient).app_gateway
 
 
 def cf_express_route_circuit_authorizations(_):
@@ -45,12 +40,6 @@ def cf_express_route_service_providers(_):
 
 def cf_load_balancers(_):
     return _network_client_factory().load_balancers
-
-
-def cf_load_balancer_create(_):
-    from azure.cli.command_modules.network.mgmt_lb.lib import LbCreationClient
-    from azure.cli.core.commands.client_factory import get_mgmt_service_client
-    return get_mgmt_service_client(LbCreationClient).lb
 
 
 def cf_local_network_gateways(_):

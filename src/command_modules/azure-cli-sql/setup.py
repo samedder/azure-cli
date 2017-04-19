@@ -6,7 +6,7 @@
 from codecs import open
 from setuptools import setup
 
-VERSION = '0.1.1b6+dev'
+VERSION = '2.0.1+dev'
 
 CLASSIFIERS = [
     'Development Status :: 4 - Beta',
@@ -25,7 +25,7 @@ CLASSIFIERS = [
 DEPENDENCIES = [
     'azure-cli-core',
     'azure-mgmt-sql==0.4.0',
-    'azure-mgmt-storage==0.31.0',
+    'azure-mgmt-storage==1.0.0rc1',
     'six'
 ]
 

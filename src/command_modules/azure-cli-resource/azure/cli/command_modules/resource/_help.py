@@ -5,11 +5,23 @@
 
 from azure.cli.core.help_files import helps #pylint: disable=unused-import
 
-#pylint: disable=line-too-long
+#pylint: disable=line-too-long, too-many-lines
 helps['lock'] = """
     type: group
     short-summary: Manage Azure locks.
 """
+helps['lock update'] = """
+    type: command
+    short-summary: Update the properties of a lock.
+    parameters:
+        - name: --notes
+          type: string
+          short-summary: 'Notes about this lock'
+    examples:
+        - name: Update a subscription level lock with new notes
+          text: >
+            az lock update --name lockName --resource-group group --notes newNotesHere
+    """
 helps['policy'] = """
     type: group
     short-summary: Manage resource policies.
@@ -146,6 +158,18 @@ helps['resource tag'] = """
         - name: Tag a web app using a resource identifier.
           text: >
             az resource tag --tags vmlist=vm1 --id /subscriptions/0b1f6471-1bf0-4dda-aec3-111111111111/resourceGroups/MyResourceGroup/providers/Microsoft.Web/sites/MyWebapp
+"""
+
+helps['resource create'] = """
+    type: command
+    short-summary: create a resource.
+    examples:
+       - name: Create a resource by providing a full resource object json. Note, you can also use "@<file>" to load from a json file.
+         text: >
+            az resource create -g myRG -n myPlan --resource-type Microsoft.web/serverFarms --is-full-object --properties "{ \\"location\\":\\"westus\\",\\"sku\\":{\\"name\\":\\"B1\\",\\"tier\\":\\"BASIC\\"}}"
+       - name: Create a resource by only providing resource properties
+         text: >
+            az resource create -g myRG -n myWeb --resource-type Microsoft.web/sites --properties "{\\"serverFarmId\\":\\"myPlan\\"}"
 """
 
 helps['resource update'] = """

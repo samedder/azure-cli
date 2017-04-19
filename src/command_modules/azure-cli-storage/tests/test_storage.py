@@ -14,7 +14,7 @@ from azure.cli.command_modules.storage._factory import NO_CREDENTIALS_ERROR_MESS
 from azure.cli.core.test_utils.vcr_test_base import \
     (VCRTestBase, ResourceGroupVCRTestBase, StorageAccountVCRTestBase,
      JMESPathCheck, NoneCheck, BooleanCheck, StringCheck)
-from azure.cli.core._util import CLIError, random_string
+from azure.cli.core.util import CLIError, random_string
 
 MOCK_ACCOUNT_KEY = '00000000'
 TEST_DIR = os.path.abspath(os.path.join(os.path.abspath(__file__), '..'))
@@ -662,16 +662,3 @@ class StorageFileACLScenarioTest(StorageAccountVCRTestBase):
 
     def body(self):
         _acl_body(self)
-
-
-class StorageBlobNoCredentialsScenarioTest(VCRTestBase):
-    def __init__(self, test_method):
-        super(StorageBlobNoCredentialsScenarioTest, self).__init__(__file__, test_method)
-
-    def test_storage_blob_no_credentials_scenario(self):
-        self.execute()
-
-    def body(self):
-        self.pop_env('AZURE_STORAGE_CONNECTION_STRING')
-        with self.assertRaisesRegexp(CLIError, re.escape(NO_CREDENTIALS_ERROR_MESSAGE)):
-            self.cmd('storage blob upload -c foo -n bar -f file_0')

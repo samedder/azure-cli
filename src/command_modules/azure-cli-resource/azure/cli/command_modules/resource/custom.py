@@ -8,22 +8,21 @@
 from __future__ import print_function
 import json
 import os
+import re
 import uuid
 
-from azure.mgmt.resource.resources import ResourceManagementClient
-from azure.mgmt.resource.resources.models.resource_group import ResourceGroup
 from azure.mgmt.resource.resources.models import GenericResource
 
-from azure.mgmt.resource.policy.models import (PolicyAssignment, PolicyDefinition)
 from azure.mgmt.resource.locks.models import ManagementLockObject
 from azure.mgmt.resource.links.models import ResourceLinkProperties
 
 from azure.cli.core.parser import IncorrectUsageError
 from azure.cli.core.prompting import prompt, prompt_pass, prompt_t_f, prompt_choice_list, prompt_int
-from azure.cli.core._util import CLIError, get_file_json
+from azure.cli.core.util import CLIError, get_file_json, shell_safe_json_parse
 import azure.cli.core.azlogging as azlogging
 from azure.cli.core.commands.client_factory import get_mgmt_service_client
 from azure.cli.core.commands.arm import is_valid_resource_id, parse_resource_id
+from azure.cli.core.profiles import get_sdk, ResourceType
 
 from ._client_factory import (_resource_client_factory,
                               _resource_policy_client_factory,
@@ -57,6 +56,7 @@ def create_resource_group(rg_name, location, tags=None):
     '''
     rcf = _resource_client_factory()
 
+    ResourceGroup = get_sdk(ResourceType.MGMT_RESOURCE_RESOURCES, 'ResourceGroup', mod='models')
     parameters = ResourceGroup(
         location=location,
         tags=tags
@@ -153,18 +153,30 @@ def _prompt_for_parameters(missing_parameters):
                 break
     return {}
 
+def _merge_parameters(parameter_list):
+    parameters = None
+    for params in parameter_list or []:
+        params_object = shell_safe_json_parse(params)
+        if params_object:
+            params_object = params_object.get('parameters', params_object)
+        if parameters is None:
+            parameters = params_object
+        else:
+            parameters.update(params_object)
+    return parameters
+
 def _deploy_arm_template_core(resource_group_name, template_file=None, template_uri=None,
-                              deployment_name=None, parameters=None, mode='incremental',
+                              deployment_name=None, parameter_list=None, mode='incremental',
                               validate_only=False, no_wait=False):
-    from azure.mgmt.resource.resources.models import DeploymentProperties, TemplateLink
+    DeploymentProperties, TemplateLink = get_sdk(ResourceType.MGMT_RESOURCE_RESOURCES,
+                                                 'DeploymentProperties',
+                                                 'TemplateLink',
+                                                 mod='models')
 
     if bool(template_uri) == bool(template_file):
         raise CLIError('please provide either template file path or uri, but not both')
 
-    if parameters:
-        parameters = json.loads(parameters)
-        if parameters:
-            parameters = parameters.get('parameters', parameters)
+    parameters = _merge_parameters(parameter_list)
 
     template = None
     template_link = None
@@ -182,7 +194,7 @@ def _deploy_arm_template_core(resource_group_name, template_file=None, template_
     properties = DeploymentProperties(template=template, template_link=template_link,
                                       parameters=parameters, mode=mode)
 
-    smc = get_mgmt_service_client(ResourceManagementClient)
+    smc = get_mgmt_service_client(ResourceType.MGMT_RESOURCE_RESOURCES)
     if validate_only:
         return smc.deployments.validate(resource_group_name, deployment_name,
                                         properties, raw=no_wait)
@@ -192,9 +204,17 @@ def _deploy_arm_template_core(resource_group_name, template_file=None, template_
 
 
 def export_deployment_as_template(resource_group_name, deployment_name):
-    smc = get_mgmt_service_client(ResourceManagementClient)
+    smc = get_mgmt_service_client(ResourceType.MGMT_RESOURCE_RESOURCES)
     result = smc.deployments.export_template(resource_group_name, deployment_name)
     print(json.dumps(result.template, indent=2))#pylint: disable=no-member
+
+def create_resource(properties, resource_group_name=None, resource_provider_namespace=None,
+                    parent_resource_path=None, resource_type=None, resource_name=None,
+                    resource_id=None, api_version=None, location=None, is_full_object=False):
+    res = _ResourceUtils(resource_group_name, resource_provider_namespace,
+                         parent_resource_path, resource_type, resource_name,
+                         resource_id, api_version)
+    return res.create_resource(properties, location, is_full_object)
 
 def show_resource(resource_group_name=None, resource_provider_namespace=None,
                   parent_resource_path=None, resource_type=None, resource_name=None,
@@ -244,6 +264,10 @@ def get_deployment_operations(client, resource_group_name, deployment_name, oper
 def list_resources(resource_group_name=None, resource_provider_namespace=None,
                    resource_type=None, name=None, tag=None, location=None):
     rcf = _resource_client_factory()
+
+    if resource_group_name is not None:
+        rcf.resource_groups.get(resource_group_name)
+
     odata_filter = _list_resources_odata_filter_builder(resource_group_name,
                                                         resource_provider_namespace,
                                                         resource_type, name, tag, location)
@@ -270,9 +294,16 @@ def _list_resources_odata_filter_builder(resource_group_name=None,
         if resource_provider_namespace:
             f = "'{}/{}'".format(resource_provider_namespace, resource_type)
         else:
+            if not re.match('[^/]+/[^/]+', resource_type):
+                raise CLIError(
+                    'Malformed resource-type: '
+                    '--resource-type=<namespace>/<resource-type> expected.')
             #assume resource_type is <namespace>/<type>. The worst is to get a server error
             f = "'{}'".format(resource_type)
         filters.append("resourceType eq " + f)
+    else:
+        if resource_provider_namespace:
+            raise CLIError('--namespace also requires --resource-type')
 
     if tag:
         if name or location:
@@ -361,6 +392,7 @@ def create_policy_assignment(policy, name=None, display_name=None,
     scope = _build_policy_scope(policy_client.config.subscription_id,
                                 resource_group_name, scope)
     policy_id = _resolve_policy_id(policy, policy_client)
+    PolicyAssignment = get_sdk(ResourceType.MGMT_RESOURCE_POLICY, 'PolicyAssignment', mod='models')
     assignment = PolicyAssignment(display_name, policy_id, scope)
     return policy_client.policy_assignments.create(scope,
                                                    name or uuid.uuid4(),
@@ -437,9 +469,10 @@ def create_policy_definition(name, rules, display_name=None, description=None):
     if os.path.exists(rules):
         rules = get_file_json(rules)
     else:
-        rules = json.loads(rules)
+        rules = shell_safe_json_parse(rules)
 
     policy_client = _resource_policy_client_factory()
+    PolicyDefinition = get_sdk(ResourceType.MGMT_RESOURCE_POLICY, 'PolicyDefinition', mod='models')
     parameters = PolicyDefinition(policy_rule=rules, description=description,
                                   display_name=display_name)
     return policy_client.policy_definitions.create_or_update(name, parameters)
@@ -450,11 +483,12 @@ def update_policy_definition(policy_definition_name, rules=None,
         if os.path.exists(rules):
             rules = get_file_json(rules)
         else:
-            rules = json.loads(rules)
+            rules = shell_safe_json_parse(rules)
 
     policy_client = _resource_policy_client_factory()
     definition = policy_client.policy_definitions.get(policy_definition_name)
     #pylint: disable=line-too-long,no-member
+    PolicyDefinition = get_sdk(ResourceType.MGMT_RESOURCE_POLICY, 'PolicyDefinition', mod='models')
     parameters = PolicyDefinition(policy_rule=rules if rules is not None else definition.policy_rule,
                                   description=description if description is not None else definition.description,
                                   display_name=display_name if display_name is not None else definition.display_name)
@@ -486,18 +520,78 @@ def list_locks(resource_group_name=None, resource_provider_namespace=None,
     :type filter_string: str
     '''
     lock_client = _resource_lock_client_factory()
+    lock_resource = _validate_lock_params(resource_group_name, resource_provider_namespace,
+                                          parent_resource_path, resource_type, resource_name)
+    resource_group_name = lock_resource[0]
+    resource_name = lock_resource[1]
+    resource_provider_namespace = lock_resource[2]
+    resource_type = lock_resource[3]
+
     if resource_group_name is None:
         return lock_client.management_locks.list_at_subscription_level(filter=filter_string)
     if resource_name is None:
         return lock_client.management_locks.list_at_resource_group_level(
             resource_group_name, filter=filter_string)
-    if resource_provider_namespace is None:
-        raise CLIError('--resource-provider-namespace is required if --resource-name is present')
-    if resource_type is None:
-        raise CLIError('--resource-type is required if --resource-name is present')
     return lock_client.management_locks.list_at_resource_level(
         resource_group_name, resource_provider_namespace, parent_resource_path, resource_type,
         resource_name, filter=filter_string)
+
+def _validate_lock_params_match_lock(
+        lock_client, name, resource_group_name, resource_provider_namespace,
+        parent_resource_path, resource_type, resource_name):
+    '''
+    Locks are scoped to subscription, resource group or resource.
+    However, the az list command returns all locks for the current scopes
+    and all lower scopes (e.g. resource group level also includes resource locks).
+    This can lead to a confusing user experience where the user specifies a lock
+    name and assumes that it will work, even if they haven't given the right
+    scope. This function attempts to validate the parameters and help the
+    user find the right scope, by first finding the lock, and then infering
+    what it's parameters should be.
+    '''
+    locks = lock_client.management_locks.list_at_subscription_level()
+    found_count = 0 # locks at different levels can have the same name
+    lock_resource_id = None
+    for lock in locks:
+        if lock.name == name:
+            found_count = found_count + 1
+            lock_resource_id = lock.id
+    if found_count == 1:
+        # If we only found one lock, let's validate that the parameters are correct,
+        # if we found more than one, we'll assume the user knows what they're doing
+        # TODO: Add validation for that case too?
+        resource = parse_resource_id(lock_resource_id)
+        _resource_group = resource.get('resource_group', None)
+        _resource_namespace = resource.get('namespace', None)
+        if _resource_group is None:
+            return
+        if resource_group_name != _resource_group:
+            raise CLIError(
+                'Unexpected --resource-group for lock {}, expected {}'.format(
+                    name, _resource_group))
+        if _resource_namespace is None:
+            return
+        if resource_provider_namespace != _resource_namespace:
+            raise CLIError(
+                'Unexpected --namespace for lock {}, expected {}'.format(name, _resource_namespace))
+        if resource.get('grandchild_type', None) is None:
+            _resource_type = resource.get('type', None)
+            _resource_name = resource.get('name', None)
+        else:
+            _resource_type = resource.get('child_type', None)
+            _resource_name = resource.get('child_name', None)
+            parent = (resource['type'] + '/' +  resource['name'])
+            if parent != parent_resource_path:
+                raise CLIError(
+                    'Unexpected --parent for lock {}, expected {}'.format(
+                        name, parent))
+        if resource_type != _resource_type:
+            raise CLIError('Unexpected --resource-type for lock {}, expected {}'.format(
+                name, _resource_type))
+        if resource_name != _resource_name:
+            raise CLIError('Unexpected --resource-name for lock {}, expected {}'.format(
+                name, _resource_name))
+
 
 def get_lock(name, resource_group_name=None):
     '''
@@ -506,7 +600,7 @@ def get_lock(name, resource_group_name=None):
     '''
     lock_client = _resource_lock_client_factory()
     if resource_group_name is None:
-        return lock_client.management_locks.get(name)
+        return lock_client.management_locks.get_at_subscription_level(name)
     return lock_client.management_locks.get_at_resource_group_level(resource_group_name, name)
 
 def delete_lock(name, resource_group_name=None, resource_provider_namespace=None,
@@ -524,18 +618,63 @@ def delete_lock(name, resource_group_name=None, resource_provider_namespace=None
     :type resource_name: str
     '''
     lock_client = _resource_lock_client_factory()
+    lock_resource = _validate_lock_params(resource_group_name, resource_provider_namespace,
+                                          parent_resource_path, resource_type, resource_name)
+    _validate_lock_params_match_lock(lock_client, name, resource_group_name,
+                                     resource_provider_namespace, parent_resource_path,
+                                     resource_type, resource_name)
+
+    resource_group_name = lock_resource[0]
+    resource_name = lock_resource[1]
+    resource_provider_namespace = lock_resource[2]
+    resource_type = lock_resource[3]
+
+
     if resource_group_name is None:
         return lock_client.management_locks.delete_at_subscription_level(name)
     if resource_name is None:
         return lock_client.management_locks.delete_at_resource_group_level(
             resource_group_name, name)
-    if resource_provider_namespace is None:
-        raise CLIError('--resource-provider-namespace is required if --resource-name is present')
-    if resource_type is None:
-        raise CLIError('--resource-type is required if --resource-name is present')
     return lock_client.management_locks.delete_at_resource_level(
-        resource_group_name, resource_provider_namespace, parent_resource_path, resource_type,
+        resource_group_name, resource_provider_namespace, parent_resource_path or '', resource_type,
         resource_name, name)
+
+def _validate_lock_params(resource_group_name, resource_provider_namespace, parent_resource_path,
+                          resource_type, resource_name):
+    if resource_group_name is None:
+        if resource_name is not None:
+            raise CLIError('--resource-name is ignored if --resource-group is not given.')
+        if resource_type is not None:
+            raise CLIError('--resource-type is ignored if --resource-group is not given.')
+        if resource_provider_namespace is not None:
+            raise CLIError('--namespace is ignored if --resource-group is not given.')
+        if parent_resource_path is not None:
+            raise CLIError('--parent is ignored if --resource-group is not given.')
+        return (None, None, None, None)
+
+    if resource_name is None:
+        if resource_type is not None:
+            raise CLIError('--resource-type is ignored if --resource-name is not given.')
+        if resource_provider_namespace is not None:
+            raise CLIError('--namespace is ignored if --resource-name is not given.')
+        if parent_resource_path is not None:
+            raise CLIError('--parent is ignored if --resource-name is not given.')
+        return (resource_group_name, None, None, None)
+
+    if resource_type is None or len(resource_type) == 0:
+        raise CLIError('--resource-type is required if --resource-name is present')
+
+    parts = resource_type.split('/')
+    if resource_provider_namespace is None:
+        if len(parts) == 1:
+            raise CLIError('A resource namespace is required if --resource-name is present.'
+                           'Expected <namespace>/<type> or --namespace=<namespace>')
+        else:
+            resource_provider_namespace = parts[0]
+            resource_type = parts[1]
+    elif len(parts) != 1:
+        raise CLIError('Resource namespace specified in both --resource-type and --namespace')
+    return (resource_group_name, resource_name, resource_provider_namespace, resource_type)
 
 def create_lock(name, resource_group_name=None, resource_provider_namespace=None,
                 parent_resource_path=None, resource_type=None, resource_name=None,
@@ -555,21 +694,26 @@ def create_lock(name, resource_group_name=None, resource_provider_namespace=None
     :type notes: str
     '''
     if level != 'ReadOnly' and level != 'CanNotDelete':
-        raise CLIError('--level must be one of "ReadOnly" or "CanNotDelete"')
+        raise CLIError('--lock-type must be one of "ReadOnly" or "CanNotDelete"')
     parameters = ManagementLockObject(level=level, notes=notes, name=name)
 
     lock_client = _resource_lock_client_factory()
+    lock_resource = _validate_lock_params(resource_group_name, resource_provider_namespace,
+                                          parent_resource_path, resource_type, resource_name)
+    resource_group_name = lock_resource[0]
+    resource_name = lock_resource[1]
+    resource_provider_namespace = lock_resource[2]
+    resource_type = lock_resource[3]
+
     if resource_group_name is None:
         return lock_client.management_locks.create_or_update_at_subscription_level(name, parameters)
+
     if resource_name is None:
         return lock_client.management_locks.create_or_update_at_resource_group_level(
             resource_group_name, name, parameters)
-    if resource_provider_namespace is None:
-        raise CLIError('--resource-provider-namespace is required if --resource-name is present')
-    if resource_type is None:
-        raise CLIError('--resource-type is required if --resource-name is present')
+
     return lock_client.management_locks.create_or_update_at_resource_level(
-        resource_group_name, resource_provider_namespace, parent_resource_path, resource_type,
+        resource_group_name, resource_provider_namespace, parent_resource_path or '', resource_type,
         resource_name, name, parameters)
 
 def _update_lock_parameters(parameters, level, notes, lock_id, lock_type):
@@ -582,15 +726,14 @@ def _update_lock_parameters(parameters, level, notes, lock_id, lock_type):
     if lock_type is not None:
         parameters.type = lock_type
 
-def update_lock(name, resource_group_name=None,
-                level=None, notes=None, lock_id=None, lock_type=None):
+def update_lock(name, resource_group_name=None, level=None, notes=None):
     lock_client = _resource_lock_client_factory()
     if resource_group_name is None:
         params = lock_client.management_locks.get(name)
-        _update_lock_parameters(params, level, notes, lock_id, lock_type)
+        _update_lock_parameters(params, level, notes, None, None)
         return lock_client.management_locks.create_or_update_at_subscription_level(name, params)
     params = lock_client.management_locks.get_at_resource_group_level(resource_group_name, name)
-    _update_lock_parameters(params, level, notes, lock_id, lock_type)
+    _update_lock_parameters(params, level, notes, None, None)
     return lock_client.management_locks.create_or_update_at_resource_group_level(
         resource_group_name, name, params)
 
@@ -673,6 +816,34 @@ class _ResourceUtils(object): #pylint: disable=too-many-instance-attributes
         self.resource_name = resource_name
         self.resource_id = resource_id
         self.api_version = api_version
+
+    def create_resource(self, properties, location, is_full_object):
+        res = json.loads(properties)
+        if not is_full_object:
+            if not location:
+                if self.resource_id:
+                    rg_name = parse_resource_id(self.resource_id)['resource_group']
+                else:
+                    rg_name = self.resource_group_name
+                location = self.rcf.resource_groups.get(rg_name).location
+
+            res = GenericResource(location=location, properties=res)
+        elif res.get('location', None) is None:
+            raise IncorrectUsageError("location of the resource is required")
+
+        if self.resource_id:
+            resource = self.rcf.resources.create_or_update_by_id(self.resource_id,
+                                                                 self.api_version,
+                                                                 res)
+        else:
+            resource = self.rcf.resources.create_or_update(self.resource_group_name,
+                                                           self.resource_provider_namespace,
+                                                           self.parent_resource_path or '',
+                                                           self.resource_type,
+                                                           self.resource_name,
+                                                           self.api_version,
+                                                           res)
+        return resource
 
     def get_resource(self):
         if self.resource_id:
@@ -761,15 +932,21 @@ class _ResourceUtils(object): #pylint: disable=too-many-instance-attributes
     @staticmethod
     def _resolve_api_version_by_id(rcf, resource_id):
         parts = parse_resource_id(resource_id)
+        namespace = parts.get('child_namespace', parts['namespace'])
         if parts.get('grandchild_type'):
             parent = (parts['type'] + '/' +  parts['name'] + '/' +
                       parts['child_type'] + '/' + parts['child_name'])
             resource_type = parts['grandchild_type']
         elif parts.get('child_type'):
-            parent = parts['type'] + '/' +  parts['name']
+            # if the child resource has a provider namespace it is independent of the
+            # parent, so set the parent to empty
+            if parts.get('child_namespace') is not None:
+                parent = ''
+            else:
+                parent = parts['type'] + '/' +  parts['name']
             resource_type = parts['child_type']
         else:
             parent = None
             resource_type = parts['type']
 
-        return _ResourceUtils._resolve_api_version(rcf, parts['namespace'], parent, resource_type)
+        return _ResourceUtils._resolve_api_version(rcf, namespace, parent, resource_type)

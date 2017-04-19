@@ -11,7 +11,7 @@ from azure.mgmt.web.models import (SourceControl, HostNameBinding, Site, SiteCon
                                    AddressResponse, HostingEnvironmentProfile)
 from azure.mgmt.web import WebSiteManagementClient
 from azure.cli.core.adal_authentication import AdalAuthentication
-from azure.cli.core._util import CLIError
+from azure.cli.core.util import CLIError
 from azure.cli.command_modules.appservice.custom import (set_deployment_user,
                                                          update_git_token, add_hostname,
                                                          update_site_configs,
@@ -209,7 +209,7 @@ class Test_Webapp_Mocked(unittest.TestCase):
     def test_update_host_certs(self, client_mock, show_webapp_mock, host_ssl_update_mock, site_op_mock):
         faked_web_client = mock.MagicMock()
         client_mock.return_value = faked_web_client
-        faked_site = Site('antarctica', server_farm_id='big_plan')
+        faked_site = Site('antarctica', server_farm_id='/subscriptions/foo/resourceGroups/foo/providers/Microsoft.Web/serverfarms/big_plan')
         faked_web_client.web_apps.get.side_effect = [faked_site, faked_site]
         test_hostname = '*.foo.com'
         cert1 = Certificate('antarctica', host_names=[test_hostname])

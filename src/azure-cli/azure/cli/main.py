@@ -9,7 +9,7 @@ import sys
 from azure.cli.core.application import APPLICATION, Configuration
 import azure.cli.core.azlogging as azlogging
 from azure.cli.core._session import ACCOUNT, CONFIG, SESSION
-from azure.cli.core._util import (show_version_info_exit, handle_exception)
+from azure.cli.core.util import (show_version_info_exit, handle_exception)
 from azure.cli.core._environment import get_config_dir
 import azure.cli.core.telemetry as telemetry
 
@@ -30,8 +30,7 @@ def main(args, file=sys.stdout):  # pylint: disable=redefined-builtin
     CONFIG.load(os.path.join(azure_folder, 'az.json'))
     SESSION.load(os.path.join(azure_folder, 'az.sess'), max_age=3600)
 
-    config = Configuration(args)
-    APPLICATION.initialize(config)
+    APPLICATION.initialize(Configuration())
 
     try:
         cmd_result = APPLICATION.execute(args)

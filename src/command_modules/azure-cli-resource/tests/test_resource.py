@@ -5,6 +5,7 @@
 
 import os
 import time
+import unittest
 # AZURE CLI RESOURCE TEST DEFINITIONS
 from azure.cli.core.test_utils.vcr_test_base import (VCRTestBase, JMESPathCheck, NoneCheck,
                                                      BooleanCheck,
@@ -170,6 +171,30 @@ class ResourceIDScenarioTest(ResourceGroupVCRTestBase):
         s.cmd('resource delete --id {}'.format(subnet_resource_id), checks=NoneCheck())
         s.cmd('resource delete --id {}'.format(vnet_resource_id), checks=NoneCheck())
 
+
+class ResourceCreateScenarioTest(ResourceGroupVCRTestBase):
+
+    def __init__(self, test_method):
+        super(ResourceCreateScenarioTest, self).__init__(__file__, test_method, resource_group='cli_test_resource_create')
+
+    def test_resource_create(self):
+        self.execute()
+
+    def body(self):
+        appservice_plan = 'cli_res_create_plan'
+        webapp = 'clirescreateweb'
+
+        self.cmd('resource create -g {} -n {} --resource-type Microsoft.web/serverFarms --is-full-object --properties "{{\\"location\\":\\"{}\\",\\"sku\\":{{\\"name\\":\\"B1\\",\\"tier\\":\\"BASIC\\"}}}}"'.format(
+            self.resource_group, appservice_plan, self.location), checks=[JMESPathCheck('name', appservice_plan)])
+
+        result = self.cmd('resource create -g {} -n {} --resource-type Microsoft.web/sites --properties "{{\\"serverFarmId\\":\\"{}\\"}}"'.format(
+            self.resource_group, webapp, appservice_plan), checks=[JMESPathCheck('name', webapp)])
+
+        app_settings_id = result['id'] + '/config/appsettings'
+        self.cmd('resource create --id {} --properties "{{\\"key2\\":\\"value12\\"}}"'.format(
+            app_settings_id), checks=[JMESPathCheck('properties.key2', 'value12')])
+
+
 class TagScenarioTest(VCRTestBase): # Not RG test base because it operates only on the subscription
 
     def test_tag_scenario(self):
@@ -194,7 +219,7 @@ class TagScenarioTest(VCRTestBase): # Not RG test base because it operates only 
         s.cmd('tag create -n {}'.format(tn), checks=[
             JMESPathCheck('tagName', tn),
             JMESPathCheck('values', []),
-            JMESPathCheck('count.value', '0')
+            JMESPathCheck('count.value', 0)
         ])
         s.cmd('tag add-value -n {} --value test'.format(tn))
         s.cmd('tag add-value -n {} --value test2'.format(tn))
@@ -448,3 +473,6 @@ class PolicyScenarioTest(ResourceGroupVCRTestBase):
         time.sleep(10) # ensure the policy is gone when run live.
         self.cmd('policy definition list', checks=[
             JMESPathCheck("length([?name=='{}'])".format(policy_name), 0)])
+
+if __name__ == '__main__':
+    unittest.main()
