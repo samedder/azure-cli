@@ -9,25 +9,33 @@ from azure.cli.core._util import CLIError
 
 logger = azlogging.get_az_logger(__name__)
 
-def sf_connect(endpoint, cert_path=None, has_password=False):
+def sf_connect(endpoint, cert=None, key=None, pem=None):
     """
-    Connects to a Service Fabric cluster endpoint
+    Connects to a Service Fabric cluster endpoint.
+
+    If connecting to secure cluster specify a cert (.crt) and key file (.key)
+    or a single file with both (.pem). Do not specify both.
 
     :param str endpoint: Cluster endpoint URL, including port and HTTP or HTTPS prefix:
-    :param str cert_path: Path to a client certificate file
-    :param bool has_password: True if the client certificate requires a password
+    :param str cert: Path to a client certificate file
+    :param str key: Path to client certificate key file
+    :param str pem: Path to client certificate, as a .pem file
 
     """
 
-    if has_password and (cert_path is None):
-        raise CLIError('--pass-protected must be used with --cert-path')
+    if not all([cert, key]) and not pem:
+        CLIError('Invalid syntax: [ --endpoint | --endpoint --key --cert | --endpoint --pem ]')
+
+    if pem and any([cert, key]):
+        CLIError('Invalid syntax: [ --endpoint | --endpoint --key --cert | --endpoint --pem ]')
+
+    if pem:
+        set_global_config_value('servicefabric', 'pem_path', pem)
+    else:
+        set_global_config_value('servicefabric', 'cert_path', cert)
+        set_global_config_value('servicefabric', 'key_path', key)
 
     set_global_config_value('servicefabric', 'endpoint', endpoint)
-    if cert_path is not None:
-        set_global_config_value('servicefabric', 'cert_path', cert_path)
-
-    if has_password:
-        set_global_config_value('servicefabric', 'cert_password', str(has_password))
 
 
 def sf_get_connection_endpoint():
@@ -35,9 +43,8 @@ def sf_get_connection_endpoint():
 
 def sf_get_cert_info():
     cert_path = az_config.get('servicefabric', 'cert_path', fallback=None)
-    password_protected = az_config.get('servicefabric', 'cert_path', fallback=False)
-    # If anything set, assume then password protected
-    if password_protected:
-        password_protected = bool(password_protected)
-    return (cert_path, password_protected)
+    key_path = az_config.get('servicefabric', 'key_path', fallback=None)
+    pem_path = az_config.get('servicefabric', 'pem_path', fallback=None)
+
+    return (cert_path, key_path, pem_path)
 

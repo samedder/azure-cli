@@ -8,13 +8,11 @@ from msrest.authentication import Authentication
 class ClientCertAuthentication(Authentication):
     """
     Client certificate authentication for Service Fabric clusters
-
-    :param str cert_path: Path to certificate to use for authentication
-    :param str cert_password: Password if certificate is protected
     """
-    def __init__(self, cert_path, cert_password=None):
-        self.cert_path = cert_path
-        self.cert_pass = cert_password
+    def __init__(self, cert=None, key=None, pem=None):
+        self.cert_path = cert
+        self.key_path = key
+        self.pem_path = pem
 
     def signed_session(self):
         """Create requests session with any required auth headers
@@ -23,13 +21,9 @@ class ClientCertAuthentication(Authentication):
         :rtype: requests.Session.
         """
         session = super(ClientCertAuthentication, self).signed_session()
-        if self.cert_pass is not None:
-            session.cert = self.cert_path
+        if self.pem_path is not None:
+            session.cert = self.pem_path
         else:
-            session.cert = self.cert_path
-
-            # Okay I figured out the bug, need to use the tuple only when passing crt
-            # and key file. Otherwise I can use a pem and then library will prompt
-            # for the password
+            session.cert = (self.cert_path, self.key_path)
 
         return session
