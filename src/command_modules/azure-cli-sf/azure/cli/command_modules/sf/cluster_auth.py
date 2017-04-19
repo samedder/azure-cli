@@ -24,8 +24,12 @@ class ClientCertAuthentication(Authentication):
         """
         session = super(ClientCertAuthentication, self).signed_session()
         if self.cert_pass is not None:
-            session.cert = (self.cert_path, self.cert_pass)
+            session.cert = self.cert_path
         else:
             session.cert = self.cert_path
+
+            # Okay I figured out the bug, need to use the tuple only when passing crt
+            # and key file. Otherwise I can use a pem and then library will prompt
+            # for the password
 
         return session

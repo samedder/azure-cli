@@ -47,7 +47,7 @@ cli_command(__name__, 'sf node report-health', 'azure.servicefabric#AzureService
 
 # Cluster commands
 
-cli_command(__name__, 'sf cluster connect', 'azure.cli.command_modules.sf.custom#sf_update_connection_endpoint')
+cli_command(__name__, 'sf cluster connect', 'azure.cli.command_modules.sf.custom#sf_connect')
 cli_command(__name__, 'sf cluster manifest', 'azure.servicefabric#AzureServiceFabricClientAPIs.get_cluster_manifest')
 cli_command(__name__, 'sf cluster code-version', 'azure.servicefabric#AzureServiceFabricClientAPIs.get_provisioned_fabric_code_version_info_list')
 cli_command(__name__, 'sf cluster config-version', 'azure.servicefabric#AzureServiceFabricClientAPIs.get_provisioned_fabric_config_version_info_list')
