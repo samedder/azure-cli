@@ -19,13 +19,19 @@ def sf_create_compose_application(application_name, file, repo_user=None,
     Compose file. This is typically the full name of the application
     including 'fabric:' URI scheme
     :param str file: Path to the Compose file to use
-    :param str repo_user: Container repository user name
+    :param str repo_user: Container repository user name if needed for
+    authentication
     :param bool encrypted: If true, indicate to use an encrypted password rather
     than prompting for a plaintext one
     :param str repo_pass: Encrypted container repository password
     """
     from azure.cli.core.util import read_file_content
     from azure.cli.command_modules.sf._factory import cf_sf_client
+
+    if encrypted and not all([repo_pass, repo_user]):
+        CLIError("Invalid arguments: [ --application_name --file | \
+        --application_name --file --repo_user | --application_name --file \
+        --repo_user --encrypted --repo_pass ])")
 
     # TODO: Check on password and prompt if un-encrypted
 
@@ -52,7 +58,7 @@ def sf_connect(endpoint, cert=None, key=None, pem=None):
     """
 
     if not all([cert, key]) and not pem:
-        CLIError('Invalid syntax: [ --endpoint | --endpoint --key --cert | --endpoint --pem ]')
+        CLIError('Invalid arguments: [ --endpoint | --endpoint --key --cert | --endpoint --pem ]')
 
     if pem and any([cert, key]):
         CLIError('Invalid syntax: [ --endpoint | --endpoint --key --cert | --endpoint --pem ]')
