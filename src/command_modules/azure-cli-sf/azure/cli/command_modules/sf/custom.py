@@ -5,7 +5,7 @@
 
 import azure.cli.core.azlogging as azlogging
 from azure.cli.core._config import az_config, set_global_config_value
-from azure.cli.core._util import CLIError
+from azure.cli.core.util import CLIError
 
 logger = azlogging.get_az_logger(__name__)
 
@@ -31,7 +31,7 @@ def sf_connect(endpoint, cert=None, key=None, pem=None):
 
     if pem:
         set_global_config_value('servicefabric', 'pem_path', pem)
-    else:
+    elif cert:
         set_global_config_value('servicefabric', 'cert_path', cert)
         set_global_config_value('servicefabric', 'key_path', key)
 

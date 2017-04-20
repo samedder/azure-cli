@@ -3,12 +3,12 @@
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # --------------------------------------------------------------------------------------------
 
-from azure.cli.core._util import CLIError
-
 def cf_sf_client(_):
+    from azure.cli.core.util import CLIError
     from azure.servicefabric import AzureServiceFabricClientAPIs
     from azure.cli.command_modules.sf.custom import sf_get_connection_endpoint, sf_get_cert_info
     from azure.cli.command_modules.sf.cluster_auth import ClientCertAuthentication
+    from azure.cli.core.commands.client_factory import configure_common_settings
 
     endpoint = sf_get_connection_endpoint()
     if endpoint is None:
@@ -16,4 +16,6 @@ def cf_sf_client(_):
 
     cert, key, pem = sf_get_cert_info()
     auth = ClientCertAuthentication(cert=cert, key=key, pem=pem)
-    return AzureServiceFabricClientAPIs(auth, base_url=endpoint)
+    client = AzureServiceFabricClientAPIs(auth, base_url=endpoint)
+    configure_common_settings(client)
+    return client
