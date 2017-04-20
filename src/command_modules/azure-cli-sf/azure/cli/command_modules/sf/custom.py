@@ -27,13 +27,18 @@ def sf_create_compose_application(application_name, file, repo_user=None,
     """
     from azure.cli.core.util import read_file_content
     from azure.cli.command_modules.sf._factory import cf_sf_client
+    from azure.cli.core.prompting import prompt_pass
 
-    if encrypted and not all([repo_pass, repo_user]):
+    if any([encrypted, repo_pass]) and not all([encrypted, repo_pass, repo_user]):
         CLIError("Invalid arguments: [ --application_name --file | \
         --application_name --file --repo_user | --application_name --file \
         --repo_user --encrypted --repo_pass ])")
 
-    # TODO: Check on password and prompt if un-encrypted
+    if repo_user:
+        plaintext_pass = prompt_pass("Container repository password: ", False,
+                                     "Password for container repository\
+                                      containing container images")
+        repo_pass = plaintext_pass
 
     file_contents = read_file_content(file)
     sf_client = cf_sf_client(None)
