@@ -28,6 +28,9 @@ def sf_create_compose_application(application_name, file, repo_user=None,
     from azure.cli.core.util import read_file_content
     from azure.cli.command_modules.sf._factory import cf_sf_client
     from azure.cli.core.prompting import prompt_pass
+    from azure.servicefabric.models.create_compose_application_description \
+    import CreateComposeApplicationDescription
+    from azure.servicefabric.models.repository_credential import RepositoryCredential
 
     if any([encrypted, repo_pass]) and not all([encrypted, repo_pass, repo_user]):
         CLIError("Invalid arguments: [ --application_name --file | \
@@ -40,11 +43,14 @@ def sf_create_compose_application(application_name, file, repo_user=None,
                                       containing container images")
         repo_pass = plaintext_pass
 
-    file_contents = read_file_content(file)
-    sf_client = cf_sf_client(None)
-    sf_client.create_compose_application(application_name, file_contents,
-                                         repo_user, repo_pass, encrypted)
+    repo_cred = RepositoryCredential(repo_user, repo_pass, encrypted)
 
+    file_contents = read_file_content(file)
+
+    model = CreateComposeApplicationDescription(application_name, file_contents, repo_cred)
+
+    sf_client = cf_sf_client(None)
+    sf_client.create_compose_application(model)
 
 def sf_connect(endpoint, cert=None, key=None, pem=None):
     from azure.cli.core._config import az_config, set_global_config_value
