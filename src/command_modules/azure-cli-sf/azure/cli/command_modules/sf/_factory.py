@@ -14,8 +14,8 @@ def cf_sf_client(_):
     if endpoint is None:
         raise CLIError('Connection endpoint not specified, run `az sf cluster select` first.')
 
-    cert, key, pem = sf_get_cert_info()
-    auth = ClientCertAuthentication(cert=cert, key=key, pem=pem)
+    cert = sf_get_cert_info()
+    auth = ClientCertAuthentication(cert)
     client = AzureServiceFabricClientAPIs(auth, base_url=endpoint)
     configure_common_settings(client)
     return client

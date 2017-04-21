@@ -9,10 +9,8 @@ class ClientCertAuthentication(Authentication):
     """
     Client certificate authentication for Service Fabric clusters
     """
-    def __init__(self, cert=None, key=None, pem=None):
-        self.cert_path = cert
-        self.key_path = key
-        self.pem_path = pem
+    def __init__(self, cert=None):
+        self.cert = cert
 
     def signed_session(self):
         """Create requests session with any required auth headers
@@ -21,9 +19,7 @@ class ClientCertAuthentication(Authentication):
         :rtype: requests.Session.
         """
         session = super(ClientCertAuthentication, self).signed_session()
-        if self.pem_path is not None:
-            session.cert = self.pem_path
-        else:
-            session.cert = (self.cert_path, self.key_path)
+        if self.cert is not None:
+            session.cert = self.cert
 
         return session
