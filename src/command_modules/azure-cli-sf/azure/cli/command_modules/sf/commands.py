@@ -57,3 +57,6 @@ cli_command(__name__, 'sf cluster report-health', 'azure.servicefabric#AzureServ
 # Compose commands
 
 cli_command(__name__, 'sf compose create', 'azure.cli.command_modules.sf.custom#sf_create_compose_application')
+cli_command(__name__, 'sf compose status', 'azure.servicefabric#AzureServiceFabricClientAPIs.get_compose_application_status', cf_sf_client)
+cli_command(__name__, 'sf compose list', 'azure.servicefabric#AzureServiceFabricClientAPIs.get_compose_application_status_list', cf_sf_client)
+cli_command(__name__, 'sf compose remove', 'azure.servicefabric#AzureServiceFabricClientAPIs.remove_compose_application', cf_sf_client)
