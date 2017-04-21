@@ -53,7 +53,7 @@ def sf_create_compose_application(application_name, file, repo_user=None,
     sf_client.create_compose_application(model)
 
 def sf_connect(endpoint, cert=None, key=None, pem=None):
-    from azure.cli.core._config import az_config, set_global_config_value
+    from azure.cli.core._config import set_global_config_value
 
     """
     Connects to a Service Fabric cluster endpoint.
@@ -84,12 +84,16 @@ def sf_connect(endpoint, cert=None, key=None, pem=None):
 
 
 def sf_get_connection_endpoint():
-    return az_config.get('servicefabric', 'endpoint', fallback=None)
+    from azure.cli.core._config import AzConfig
+    config = AzConfig()
+    return config.get('servicefabric', 'endpoint', fallback=None)
 
 def sf_get_cert_info():
-    cert_path = az_config.get('servicefabric', 'cert_path', fallback=None)
-    key_path = az_config.get('servicefabric', 'key_path', fallback=None)
-    pem_path = az_config.get('servicefabric', 'pem_path', fallback=None)
+    from azure.cli.core._config import AzConfig
+    config = AzConfig()
+    cert_path = config.get('servicefabric', 'cert_path', fallback=None)
+    key_path = config.get('servicefabric', 'key_path', fallback=None)
+    pem_path = config.get('servicefabric', 'pem_path', fallback=None)
 
     return (cert_path, key_path, pem_path)
 
