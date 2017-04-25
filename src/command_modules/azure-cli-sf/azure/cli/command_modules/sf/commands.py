@@ -53,3 +53,7 @@ cli_command(__name__, 'sf cluster code-version', 'azure.servicefabric#AzureServi
 cli_command(__name__, 'sf cluster config-version', 'azure.servicefabric#AzureServiceFabricClientAPIs.get_provisioned_fabric_config_version_info_list')
 cli_command(__name__, 'sf cluster health', 'azure.servicefabric#AzureServiceFabricClientAPIs.get_cluster_health')
 cli_command(__name__, 'sf cluster report-health', 'azure.servicefabric#AzureServiceFabricClientAPIs.report_cluster_health')
+
+# Package commands
+
+cli_command(__name__, 'sf application package copy', 'azure.cli.command_modules.sf.custom#sf_copy_app_package')
