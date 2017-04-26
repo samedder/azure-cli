@@ -5,9 +5,10 @@
 
 import azure.cli.core.azlogging as azlogging
 import os
-from azure.cli.core.util import CLIError
+
 from azure.cli.core._environment import get_config_dir
 from azure.cli.core._config import AzConfig
+from azure.cli.core.util import CLIError
 
 # Really the CLI should do this for us but I cannot see how to get it to
 CONFIG_PATH = os.path.join(get_config_dir(), "config")
@@ -40,7 +41,7 @@ def sf_create_compose_application(application_name, file, repo_user=None,
     from azure.servicefabric.models.repository_credential import RepositoryCredential
 
     if any([encrypted, repo_pass]) and not all([encrypted, repo_pass, repo_user]):
-        CLIError("Invalid arguments: [ --application_name --file | \
+        raise CLIError("Invalid arguments: [ --application_name --file | \
         --application_name --file --repo_user | --application_name --file \
         --repo_user --encrypted --repo_pass ])")
 
@@ -59,35 +60,34 @@ def sf_create_compose_application(application_name, file, repo_user=None,
     sf_client = cf_sf_client(None)
     sf_client.create_compose_application(model)
 
-def sf_connect(endpoint, cert=None, key=None, pem=None, ca=None):
-    from azure.cli.core._config import set_global_config_value
-
+def sf_select(endpoint, cert=None, key=None, pem=None, ca=None):
     """
     Connects to a Service Fabric cluster endpoint.
+
 
     If connecting to secure cluster specify a cert (.crt) and key file (.key)
     or a single file with both (.pem). Do not specify both. Optionally, if
     connecting to a secure cluster, specify also a path to a CA bundle file
     or directory of trusted CA certs.
 
-    :param str endpoint: Cluster endpoint URL, including port and HTTP or HTTPS prefix:
+    :param str endpoint: Cluster endpoint URL, including port and HTTP or HTTPS prefix
     :param str cert: Path to a client certificate file
     :param str key: Path to client certificate key file
     :param str pem: Path to client certificate, as a .pem file
     :param str ca: Path to CA certs directory to treat as valid or CA bundle file
-
     """
+    from azure.cli.core._config import set_global_config_value
 
     usage = "--endpoint [ [ --key --cert | --pem ] --ca ]"
 
     if ca and not (pem or all([key, cert])):
-        CLIError("Invalid syntax: " + usage)
+        raise CLIError("Invalid syntax: " + usage)
 
     if not all([cert, key]) and not pem:
-        CLIError("Invalid syntax: " + usage)
+        raise CLIError("Invalid syntax: " + usage)
 
     if pem and any([cert, key]):
-        CLIError("Invalid syntax: " + usage)
+        raise CLIError("Invalid syntax: " + usage)
 
     if pem:
         set_global_config_value("servicefabric", "pem_path", pem)
@@ -126,4 +126,4 @@ def sf_get_cert_info():
     elif security_type is "none":
         return None
     else:
-        CLIError("Cluster security type not set")
+        raise CLIError("Cluster security type not set")
