@@ -59,27 +59,35 @@ def sf_create_compose_application(application_name, file, repo_user=None,
     sf_client = cf_sf_client(None)
     sf_client.create_compose_application(model)
 
-def sf_connect(endpoint, cert=None, key=None, pem=None):
+def sf_connect(endpoint, cert=None, key=None, pem=None, ca=None):
     from azure.cli.core._config import set_global_config_value
 
     """
     Connects to a Service Fabric cluster endpoint.
 
     If connecting to secure cluster specify a cert (.crt) and key file (.key)
-    or a single file with both (.pem). Do not specify both.
+    or a single file with both (.pem). Do not specify both. Optionally, if
+    connecting to a secure cluster, specify also a path to a CA bundle file
+    or directory of trusted CA certs.
 
     :param str endpoint: Cluster endpoint URL, including port and HTTP or HTTPS prefix:
     :param str cert: Path to a client certificate file
     :param str key: Path to client certificate key file
     :param str pem: Path to client certificate, as a .pem file
+    :param str ca: Path to CA certs directory to treat as valid or CA bundle file
 
     """
 
+    usage = "--endpoint [ [ --key --cert | --pem ] --ca ]"
+
+    if ca and not (pem or all([key, cert])):
+        CLIError("Invalid syntax: " + usage)
+
     if not all([cert, key]) and not pem:
-        CLIError("Invalid arguments: [ --endpoint | --endpoint --key --cert | --endpoint --pem ]")
+        CLIError("Invalid syntax: " + usage)
 
     if pem and any([cert, key]):
-        CLIError("Invalid syntax: [ --endpoint | --endpoint --key --cert | --endpoint --pem ]")
+        CLIError("Invalid syntax: " + usage)
 
     if pem:
         set_global_config_value("servicefabric", "pem_path", pem)
@@ -91,8 +99,15 @@ def sf_connect(endpoint, cert=None, key=None, pem=None):
     else:
         set_global_config_value("servicefabric", "security", "none")
 
+    if ca:
+        set_global_config_value("servicefabric", "ca_path", ca)
+
     set_global_config_value("servicefabric", "endpoint", endpoint)
 
+def sf_get_ca_cert_info():
+    az_config.config_parser.read(CONFIG_PATH)
+    ca_cert = az_config.get("servicefabric", "ca_path", fallback=None)
+    return ca_cert
 
 def sf_get_connection_endpoint():
     az_config.config_parser.read(CONFIG_PATH)

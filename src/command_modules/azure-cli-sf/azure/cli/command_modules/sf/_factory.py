@@ -6,7 +6,7 @@
 def cf_sf_client(_):
     from azure.cli.core.util import CLIError
     from azure.servicefabric import ServiceFabricClientAPIs
-    from azure.cli.command_modules.sf.custom import sf_get_connection_endpoint, sf_get_cert_info
+    from azure.cli.command_modules.sf.custom import sf_get_connection_endpoint, sf_get_cert_info, sf_get_ca_cert_info
     from azure.cli.command_modules.sf.cluster_auth import ClientCertAuthentication
     from azure.cli.core.commands.client_factory import configure_common_settings
 
@@ -15,7 +15,11 @@ def cf_sf_client(_):
         raise CLIError('Connection endpoint not specified, run `az sf cluster select` first.')
 
     cert = sf_get_cert_info()
-    auth = ClientCertAuthentication(cert)
+    if cert is not None:
+        ca_cert = sf_get_ca_cert_info()
+    else:
+        ca_cert = None
+    auth = ClientCertAuthentication(cert, ca_cert)
     client = ServiceFabricClientAPIs(auth, base_url=endpoint)
     configure_common_settings(client)
     return client
