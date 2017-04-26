@@ -60,3 +60,7 @@ cli_command(__name__, 'sf compose create', 'azure.cli.command_modules.sf.custom#
 cli_command(__name__, 'sf compose status', 'azure.servicefabric#ServiceFabricClientAPIs.get_compose_application_status', cf_sf_client)
 cli_command(__name__, 'sf compose list', 'azure.servicefabric#ServiceFabricClientAPIs.get_compose_application_status_list', cf_sf_client)
 cli_command(__name__, 'sf compose remove', 'azure.servicefabric#ServiceFabricClientAPIs.remove_compose_application', cf_sf_client)
+
+# Package commands
+
+cli_command(__name__, 'sf application package copy', 'azure.cli.command_modules.sf.custom#sf_copy_app_package')
