@@ -13,6 +13,7 @@ from azure.cli.command_modules.sf._factory import cf_sf_client
 cli_command(__name__, 'sf application health', 'azure.servicefabric#ServiceFabricClientAPIs.get_application_health', cf_sf_client)
 cli_command(__name__, 'sf application manifest', 'azure.servicefabric#ServiceFabricClientAPIs.get_application_type_manifest', cf_sf_client)
 cli_command(__name__, 'sf application report-health', 'azure.servicefabric#ServiceFabricClientAPIs.report_application_health', cf_sf_client)
+cli_command(__name__, 'sf application upload', 'azure.cli.command_modules.sf.custom#sf_upload_app')
 
 # Service commands
 
@@ -60,7 +61,3 @@ cli_command(__name__, 'sf compose create', 'azure.cli.command_modules.sf.custom#
 cli_command(__name__, 'sf compose status', 'azure.servicefabric#ServiceFabricClientAPIs.get_compose_application_status', cf_sf_client)
 cli_command(__name__, 'sf compose list', 'azure.servicefabric#ServiceFabricClientAPIs.get_compose_application_status_list', cf_sf_client)
 cli_command(__name__, 'sf compose remove', 'azure.servicefabric#ServiceFabricClientAPIs.remove_compose_application', cf_sf_client)
-
-# Package commands
-
-cli_command(__name__, 'sf application package copy', 'azure.cli.command_modules.sf.custom#sf_copy_app_package')

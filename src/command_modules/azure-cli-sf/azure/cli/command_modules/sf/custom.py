@@ -4,7 +4,6 @@
 # --------------------------------------------------------------------------------------------
 
 import os
-import sys
 import urllib.parse
 import requests
 
@@ -155,7 +154,7 @@ class FileIter: # pylint: disable=too-few-public-methods
             self.print_progress(len(chunk), self.rel_file_path)
             return chunk
 
-def sf_copy_app_package(path):
+def sf_upload_app(path):
     abspath = os.path.abspath(path)
     basename = os.path.basename(abspath)
     endpoint = sf_get_connection_endpoint()
@@ -173,8 +172,7 @@ def sf_copy_app_package(path):
     def print_progress(size, rel_file_path):
         nonlocal current_files_size
         current_files_size += size
-        sys.stdout.write("\r\033[K")
-        print('[{}/{}] files, [{}/{}] bytes, {}'.format(current_files_count,
+        print('\r\033[K\r[{}/{}] files, [{}/{}] bytes, {}'.format(current_files_count,
                                                         total_files_count,
                                                         current_files_size,
                                                         total_files_size,
@@ -203,8 +201,7 @@ def sf_copy_app_package(path):
         _ = requests.put(url)
         current_files_count += 1
         print_progress(0, os.path.normpath(os.path.join(rel_path, '_.dir')))
-    sys.stdout.write("\r\033[K")
-    print('[{}/{}] files, [{}/{}] bytes sent'.format(current_files_count,
+    print('\r\033[K\r[{}/{}] files, [{}/{}] bytes sent'.format(current_files_count,
                                                      total_files_count,
                                                      current_files_size,
                                                      total_files_size))
