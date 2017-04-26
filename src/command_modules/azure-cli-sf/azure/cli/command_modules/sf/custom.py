@@ -83,7 +83,7 @@ def sf_select(endpoint, cert=None, key=None, pem=None, ca=None):
     if ca and not (pem or all([key, cert])):
         raise CLIError("Invalid syntax: " + usage)
 
-    if not all([cert, key]) and not pem:
+    if any([cert, key]) and not all([cert, key]):
         raise CLIError("Invalid syntax: " + usage)
 
     if pem and any([cert, key]):
