@@ -274,32 +274,126 @@ def sf_create_app(name, app_type, version, parameters=None, min_node_count=0, ma
     sf_client = cf_sf_client(None)
     sf_client.create_application(app_desc)
 
-def sf_upgrade_app():
+def sf_upgrade_app(name, version, parameters, mode="UnmonitoredAuto", # pylint: disable=R0913
+                   replica_set_check_timeout=None, force_restart=None,
+                   failure_action=None, health_check_wait_duration=None,
+                   health_check_stable_duration=None,
+                   health_check_retry_timeout=None, upgrade_timeout=None,
+                   upgrade_domain_timeout=None, warning_as_error=False,
+                   max_unhealthy_apps=0, default_service_health_policy=None,
+                   service_health_policy=None):
     """
+    Starts upgrading an application in the Service Fabric cluster.
 
+    Validates the supplied application upgrade parameters and starts upgrading
+    the application if the parameters are valid.
+
+    :param str name: Application name. The name of the target application,
+    including the 'fabric' URI scheme.
+    :param str version: The target application type version (found in the
+    application manifest) for the application upgrade.
+    :param str mode: The mode used to monitor health during a rolling upgrade.
+    :param long replica_set_check_timeout: The maximum amount of time to block
+    processing of an upgrade domain and prevent loss of availability when
+    there are unexpected issues. Measured in seconds.
+    :param bool force_restart: Forcefully restart processes during upgrade even
+    when the code version has not changed.
+    :param str failure_action: The action to perform when a Monitored upgrade
+    encounters monitoring policy or health policy violations.
+    :param int health_check_wait_duration: The amount of time to wait after
+    completing an upgrade domain before applying health policies. Measured in
+    milliseconds.
+    :param int health_check_stable_duration: The amount of time that the
+    application or cluster must remain healthy before the upgrade proceeds
+    to the next upgrade domain. Measured in milliseconds.
+    :param int health_check_retry_timeout: The amount of time to retry health
+    evaluations when the application or cluster is unhealthy before the failure
+    action is executed. Measured in milliseconds.
+    :param int upgrade_timeout: The amount of time the overall upgrade has to
+    complete before FailureAction is executed. Measured in milliseconds.
+    :param int upgrade_domain_timeout: The amount of time each upgrade domain
+    has to complete before FailureAction is executed. Measured in milliseconds.
+    :param bool warning_as_error: Treat health evaluation warnings with the same
+    severity as errors.
+    :param int max_unhealthy_apps: The maximum allowed percentage of unhealthy
+    deployed applications. Represented as a number between 0 and 100.
     """
-    from azure.servicefabric.models.application_description import ApplicationDescription
-    from azure.servicefabric.models.application_parameter import ApplicationParameter
+    from azure.servicefabric.models.application_upgrade_description import \
+    ApplicationUpgradeDescription
+    from azure.servicefabric.models.application_parameter import \
+    ApplicationParameter
+    from azure.servicefabric.models.monitoring_policy_description import \
+    MonitoringPolicyDescription
+    from azure.servicefabric.models.application_health_policy import \
+    ApplicationHealthPolicy
+    from azure.servicefabric.models.service_type_health_policy import \
+    ServiceTypeHealthPolicy
+    from azure.servicefabric.models.service_type_health_policy_map_item import \
+    ServiceTypeHealthPolicyMapItem
+    from azure.cli.command_modules.sf._factory import cf_sf_client
 
-    # TODO, waiting on CLI guys to explain best way to handle arbitary user dicts
+    monitoring_policy = MonitoringPolicyDescription(failure_action,
+                                                    health_check_wait_duration,
+                                                    health_check_stable_duration,
+                                                    health_check_retry_timeout,
+                                                    upgrade_timeout,
+                                                    upgrade_domain_timeout)
+
+    app_params = None
+    if parameters is not None:
+        app_params = []
+        for k in parameters:
+            # Create an application parameter for every of these
+            p = ApplicationParameter(k, parameters[k])
+            app_params.append(p)
+
+    def_shp = None
+    if default_service_health_policy is not None:
+        # Extract properties from dict using previously defined names
+        shp = default_service_health_policy.get("max_percent_unhealthy_partitions_per_service", 0)
+        rhp = default_service_health_policy.get("max_percent_unhealthy_replicas_per_partition", 0)
+        ushp = default_service_health_policy.get("max_percent_unhealthy_services", 0)
+        def_shp = ServiceTypeHealthPolicy(shp, rhp, ushp)
+
+    map_shp = None
+    if service_health_policy is not None:
+        map_shp = []
+        for st_desc in service_health_policy:
+            st_name = st_desc.get("Key", None)
+            if st_name is None:
+                raise CLIError("Could not find service type name in service \
+                               health policy map")
+            st_policy = st_desc.get("Value", None)
+            if st_policy is None:
+                raise CLIError("Could not find service type policy in service \
+                               health policy map")
+            st_shp = st_policy.get("max_percent_unhealthy_partitions_per_service", 0)
+            st_rhp = st_policy.get("max_percent_unhealthy_replicas_per_partition", 0)
+            st_ushp = st_policy.get("max_percent_unhealthy_services", 0)
+
+            std_policy = ServiceTypeHealthPolicy(st_shp, st_rhp, st_ushp)
+            std_list_item = ServiceTypeHealthPolicyMapItem(st_name, std_policy)
+
+            map_shp.append(std_list_item)
+
+    app_health_policy = ApplicationHealthPolicy(warning_as_error,
+                                                max_unhealthy_apps, def_shp,
+                                                map_shp)
+
+    desc = ApplicationUpgradeDescription(name, version, app_params, "Rolling",
+                                         mode, replica_set_check_timeout,
+                                         force_restart, monitoring_policy,
+                                         app_health_policy)
+
+    sf_client = cf_sf_client(None)
+    sf_client.start_application_upgrade(name, desc)
+
+
+    # TODO consider additional parameter validation here rather than allowing
+    # the gateway to reject it and return failure response
 
 def sf_create_service(app_name, name, type, singleton_scheme=False, 
                       named_scheme=False, int_scheme=False):
-    """
-    Creates a Service Fabric application using the specified description
-
-    :param str app_name: Name of the parent application for the service
-    :param str name: Name of the service to be created
-    :param str type: Name of the service type to be created
-    :param bool singleton_scheme: Indicates the service should have a single
-    partition, or be not partition. Each service must have only one partition
-    scheme
-    :param bool named_scheme: Indicates the service should be partitioned by
-    using string names as keys. Each service must have only one partition scheme
-    :param bool int_scheme: Indicates the service should be partitioned across
-    a uniform range of unsigned integers. Each service must have only one
-    partition scheme
-    """
     from azure.servicefabric.models.service_description import ServiceDescription
     from azure.servicefabric.models.named_partition_scheme_description \
     import NamedPartitionSchemeDescription
