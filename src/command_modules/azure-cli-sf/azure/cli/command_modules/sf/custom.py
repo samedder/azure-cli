@@ -118,7 +118,7 @@ def sf_get_connection_endpoint():
 
 def sf_get_cert_info():
     az_config.config_parser.read(CONFIG_PATH)
-    security_type = az_config.get("servicefabric", "security", fallback=None)
+    security_type = str(az_config.get("servicefabric", "security", fallback=""))
     if security_type is "pem":
         pem_path = az_config.get("servicefabric", "pem_path", fallback=None)
         return pem_path
@@ -130,12 +130,6 @@ def sf_get_cert_info():
         return None
     else:
         raise CLIError("Cluster security type not set")
-
-    cert_path = az_config.get('servicefabric', 'cert_path', fallback=None)
-    key_path = az_config.get('servicefabric', 'key_path', fallback=None)
-    pem_path = az_config.get('servicefabric', 'pem_path', fallback=None)
-
-    return (cert_path, key_path, pem_path)
 
 class FileIter: # pylint: disable=too-few-public-methods
     def __init__(self, file, rel_file_path, print_progress):
