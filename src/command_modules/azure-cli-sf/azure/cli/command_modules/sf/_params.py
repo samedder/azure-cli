@@ -35,3 +35,17 @@ with ParametersContext(command="sf application upgrade") as c:
                type=get_json_object,
                help="JSON encoded map with service type health policy per \
                service type name. The map is empty be default.")
+
+with ParametersContext(command="sf service create") as c:
+    c.register("load_metrics", ("--load_metrics",),
+               type=get_json_object,
+               help="JSON encoded list of metrics used when load balancing \
+               services across nodes.")
+
+with ParametersContext(command="sf service create") as c:
+    c.register("placement_policy_list", ("--placement_policy_list",),
+               type=get_json_object,
+               help="JSON encoded list of placement policies for the service, \
+               and any associated domain names. Policies can be one or more \
+               of: `NonPartiallyPlaceService`, `PreferPrimaryDomain`, \
+               `RequireDomain`, `requireDomainDistribution`")

@@ -392,8 +392,51 @@ def sf_upgrade_app(name, version, parameters, mode="UnmonitoredAuto", # pylint: 
     # TODO consider additional parameter validation here rather than allowing
     # the gateway to reject it and return failure response
 
-def sf_create_service(app_name, name, type, singleton_scheme=False, 
-                      named_scheme=False, int_scheme=False):
+def sf_create_service(app_name, name, type, singleton_scheme=False,
+                      named_scheme=False, int_scheme=False,
+                      named_scheme_list=None, int_scheme_low=None,
+                      int_scheme_high=None, int_scheme_count=None,
+                      constraints=None, correlated_service=None,
+                      correlation=None, load_metrics=None, 
+                      placement_policy_list=None, move_cost=None,
+                      activation_mode=None, dns_name=None):
+    """
+    Creates the specified Service Fabric service from the description.
+
+    :param str app_name: The identity of the parent application. This is
+    typically the full name of the application without the 'fabric:' URI scheme.
+    :param str name: Name of the service.
+    :param str type: Name of the service type.
+    :param bool singleton_scheme: Indicates the service should have a single
+    partition or be a non-partitioned service.
+    :param bool named_scheme: Indicates the service should have multiple named
+    partitions.
+    :param list of str named_scheme_list: The list of names to partition the
+    service across, if using the named partition scheme.
+    :param bool int_scheme: Indicates the service should be uniformly
+    partitioned across a range of unsigned integers.
+    :param str int_scheme_low: The start of the key integer range, if using an
+    uniform integer partition scheme.
+    :param str int_scheme_high: The end of the key integer range, if using an
+    uniform integer partition scheme.
+    :param str int_scheme_count: The number of partitions inside the integer
+    key range to create, if using an uniform integer partition scheme.
+    :param str constraints: The placement constraints as a string. Placement
+    constraints are boolean expressions on node properties and allow for
+    restricting a service to particular nodes based on the service requirements.
+    For example, to place a service on nodes where NodeType is blue specify the
+    following:"NodeColor == blue".
+    :param str correlation: Correlate the service with an existing service
+    using an alignment affinity. Possible values include: 'Invalid', 'Affinity',
+    'AlignedAffinity', 'NonAlignedAffinity'.
+    :param str correlated_service: Name of the target service to correlate with.
+    :param str move_cost: Specifies the move cost for the service. Possible 
+    values are: 'Zero', 'Low', 'Medium', 'High'.
+    :param str activation_mode: The activation mode for the service package.
+    Possible values include: 'SharedProcess', 'ExclusiveProcess'.
+    :param str dns_name: The DNS name of the service to be created. The Service
+    Fabric DNS system service must be enabled for this setting.
+    """
     from azure.servicefabric.models.service_description import ServiceDescription
     from azure.servicefabric.models.named_partition_scheme_description \
     import NamedPartitionSchemeDescription
@@ -401,7 +444,118 @@ def sf_create_service(app_name, name, type, singleton_scheme=False,
     import SingletonPartitionSchemeDescription
     from azure.servicefabric.models.uniform_int64_range_partition_scheme_description \
     import UniformInt64RangePartitionSchemeDescription
+    from azure.servicefabric.models.service_correlation_description \
+    import ServiceCorrelationDescription
+    from azure.servicefabric.models.service_load_metric_description \
+    import ServiceLoadMetricDescription
+    from azure.servicefabric.models.service_placement_non_partially_place_service_policy_description \
+    import ServicePlacementNonPartiallyPlaceServicePolicyDescription
+    from azure.servicefabric.models.service_placement_prefer_primary_domain_policy_description \
+    import ServicePlacementPreferPrimaryDomainPolicyDescription
+    from azure.servicefabric.models.service_placement_required_domain_policy_description \
+    import ServicePlacementRequiredDomainPolicyDescription
+    from azure.servicefabric.models.service_placement_require_domain_distribution_policy_description \
+    import ServicePlacementRequireDomainDistributionPolicyDescription
+    from azure.cli.command_modules.sf._factory import cf_sf_client
 
-    if not sum([singleton_scheme, named_scheme, int_scheme]) is 1:
-        raise CLIError("Specify exactly  one partition scheme")
-    
+    if sum([singleton_scheme, named_scheme, int_scheme]) is not 1:
+        raise CLIError("Specify exactly one partition scheme")
+
+    part_schema = None
+    if singleton_scheme:
+        part_schema = SingletonPartitionSchemeDescription()
+    elif named_scheme:
+        if not named_scheme_list:
+            raise CLIError("When specifying named partition scheme, must \
+            include list of names")
+        part_schema = NamedPartitionSchemeDescription(len(named_scheme_list), named_scheme_list)
+    elif int_scheme:
+        if not all([int_scheme_low, int_scheme_high, int_scheme_count]):
+            raise CLIError("Must specify the full integer range and partition \
+            count when using an uniform integer partition scheme")
+        part_schema = UniformInt64RangePartitionSchemeDescription(int_scheme_count,
+                                                                  int_scheme_low,
+                                                                  int_scheme_high)
+
+    corre = None
+    if any([correlated_service, correlation]):
+        if not all([correlated_service, correlation]):
+            raise CLIError("Must specify both a correlation service and \
+            correlation scheme")
+        corre = ServiceCorrelationDescription(correlation, correlated_service)
+
+    load_list = None
+    if load_metrics is not None:
+        load_list = []
+        for l in load_metrics:
+            l_name = l.get("name", None)
+            if l_name is None:
+                raise CLIError("Could not find specified load metric name")
+            l_weight = l.get("weight", None)
+            l_primary = l.get("primary_default_load", None)
+            l_secondary = l.get("secondary_default_load", None)
+            l_default = l.get("default_load", None)
+            l_desc = ServiceLoadMetricDescription(l_name, l_weight, l_primary,
+                                                  l_secondary, l_default)
+            load_list.append(l_desc)
+
+    place_policy = None
+    if placement_policy_list:
+        place_policy = []
+        valid_policies = [
+            "NonPartiallyPlaceService",
+            "PreferPrimaryDomain",
+            "RequireDomain",
+            "RequireDomainDistribution"
+        ]
+        # Not entirely documented but similar to the property names
+        for p in placement_policy_list:
+            p_type = p.get("type", None)
+            if p_type is None:
+                raise CLIError("Could not determine type of specified \
+                placement policy")
+            if p_type not in valid_policies:
+                raise CLIError("Invalid type of placement policy specified")
+            p_domain_name = p.get("domain_name", None)
+            if (p_domain_name is None) and (p_type != "NonPartiallyPlaceService"):
+                raise CLIError("Placement policy type requires target domain \
+                name")
+            if p_type == "NonPartiallyPlaceService":
+                p_policy = ServicePlacementNonPartiallyPlaceServicePolicyDescription()
+            elif p_type == "PreferPrimaryDomain":
+                p_policy = ServicePlacementPreferPrimaryDomainPolicyDescription(p_domain_name)
+            elif p_type == "RequireDomain":
+                p_policy = ServicePlacementRequiredDomainPolicyDescription(p_domain_name)
+            elif p_type == "RequireDomainDistribution":
+                p_policy = ServicePlacementRequireDomainDistributionPolicyDescription(p_domain_name)
+            place_policy.append(p_policy)
+
+    # API weirdness where we both have to specify a move cost, and a indicate
+    # the existence of a default move cost
+    move_cost_specified = None
+    if move_cost is not None:
+        valid_costs = [
+            "Zero",
+            "Low",
+            "Medium",
+            "High"
+        ]
+        if move_cost not in valid_costs:
+            raise CLIError("Invalid move cost specified")
+        move_cost_specified = True
+
+    if activation_mode is not None:
+        valid_modes = [
+            "SharedProcess",
+            "ExclusiveProcess"
+        ]
+        if activation_mode not in valid_modes:
+            raise CLIError("Invalid activation mode specified")
+
+    sd = ServiceDescription(name, type, part_schema, app_name, None,
+                            constraints, corre, load_list, place_policy,
+                            move_cost, move_cost_specified, activation_mode,
+                            dns_name)
+
+    sf_client = cf_sf_client(None)
+    sf_client.create_service(app_name, sd)
