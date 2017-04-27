@@ -24,7 +24,7 @@ cli_command(__name__, 'sf application upgrade', 'azure.cli.command_modules.sf.cu
 
 cli_command(__name__, 'sf service list', 'azure.servicefabric#ServiceFabricClientAPIs.get_service_info_list', cf_sf_client)
 cli_command(__name__, 'sf service manifest', 'azure.servicefabric#ServiceFabricClientAPIs.get_service_manifest', cf_sf_client)
-cli_command(__name__, 'sf service application-name', 'azure.servicefabric#ServiceFabricClientAPIs.get_application_name', cf_sf_client)
+cli_command(__name__, 'sf service application-name', 'azure.servicefabric#ServiceFabricClientAPIs.get_application_name_info', cf_sf_client)
 cli_command(__name__, 'sf service report-health', 'azure.servicefabric#ServiceFabricClientAPIs.report_service_health', cf_sf_client)
 cli_command(__name__, 'sf service create', 'azure.cli.command_modules.sf.custom#sf_create_service')
 cli_command(__name__, 'sf service description', 'azure.servicefabric#ServiceFabricClientAPIs.get_service_description', cf_sf_client)
