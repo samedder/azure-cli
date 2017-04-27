@@ -13,6 +13,4 @@ with ParametersContext(command="sf application create") as c:
 
 with ParametersContext(command="sf application create") as c:
     c.register("metrics", ("--metrics",), type=get_json_object,
-               help="JSON encoded list of application metrics and their \
-               descriptions. These can be generated using `az sf application \
-               gen-metrics")
+               help="JSON encoded list of application metrics and their descriptions")

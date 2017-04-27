@@ -209,10 +209,9 @@ def sf_copy_app_package(path):
                                                      current_files_size,
                                                      total_files_size))
 
-def sf_create_app(name, app_type, version, parameters=None, # pylint: disable=too-many-arguments
-                  min_node_count=0, max_node_count=0, metrics=None):
+def sf_create_app(name, app_type, version, parameters=None, min_node_count=0, max_node_count=0, metrics=None):
     """
-    Creates a Service Fabric application using the specified description
+    Creates a Service Fabric application using the specified description.
 
     :param str name: Application name
     :param str app_type: Application type
@@ -230,6 +229,9 @@ def sf_create_app(name, app_type, version, parameters=None, # pylint: disable=to
     from azure.servicefabric.models.application_parameter import ApplicationParameter
     from azure.servicefabric.models.application_capacity_description \
     import ApplicationCapacityDescription
+    from azure.servicefabric.models.application_metric_description import \
+    ApplicationMetricDescription
+    from azure.cli.command_modules.sf._factory import cf_sf_client
 
     if min_node_count > max_node_count:
         raise CLIError("Note, the minimum node reserve capacity count cannot \
@@ -242,11 +244,35 @@ def sf_create_app(name, app_type, version, parameters=None, # pylint: disable=to
             # Create an application parameter for every of these
             p = ApplicationParameter(k, parameters[k])
             app_params.append(p)
-    
+
+    # For simplicity, we assume user pass in valid key names in the list, or
+    # ignore the input
     app_metrics = None
     if metrics is not None:
         app_metrics = []
+        for k in metrics:
+            metric = metrics[k]
+            metric_name = metric.get("name", None)
+            if metric_name is None:
+                raise CLIError("Could not decode required application metric name")
+            metric_max_cap = metric.get("maximum_capacity", 0)
+            metric_reserve_cap = metric.get("reservation_capacity", 0)
+            metric_total_cap = metric.get("total_application_capacity", 0)
+            metric_desc = ApplicationMetricDescription(metric_name,
+                                                       metric_max_cap,
+                                                       metric_reserve_cap,
+                                                       metric_total_cap)
+            app_metrics.append(metric_desc)
 
+    app_cap_desc = ApplicationCapacityDescription(min_node_count,
+                                                  max_node_count,
+                                                  app_metrics)
+
+    app_desc = ApplicationDescription(name, app_type, version, app_params,
+                                      app_cap_desc)
+
+    sf_client = cf_sf_client(None)
+    sf_client.create_application(app_desc)
 
 def sf_upgrade_app():
     """
