@@ -18,6 +18,7 @@ cli_command(__name__, 'sf application create', 'azure.cli.command_modules.sf.cus
 cli_command(__name__, 'sf application delete', 'azure.servicefabric#ServiceFabricClientAPIs.delete_application', cf_sf_client)
 cli_command(__name__, 'sf application unprovision', 'azure.servicefabric#ServiceFabricClientAPIs.unprovision_application', cf_sf_client)
 cli_command(__name__, 'sf application upgrade', 'azure.cli.command_modules.sf.custom#sf_upgrade_app')
+cli_command(__name__, 'sf application upload', 'azure.cli.command_modules.sf.custom#sf_upload_app')
 
 
 # Service commands
@@ -76,10 +77,6 @@ cli_command(__name__, 'sf compose create', 'azure.cli.command_modules.sf.custom#
 cli_command(__name__, 'sf compose status', 'azure.servicefabric#ServiceFabricClientAPIs.get_compose_application_status', cf_sf_client)
 cli_command(__name__, 'sf compose list', 'azure.servicefabric#ServiceFabricClientAPIs.get_compose_application_status_list', cf_sf_client)
 cli_command(__name__, 'sf compose remove', 'azure.servicefabric#ServiceFabricClientAPIs.remove_compose_application', cf_sf_client)
-
-# Package commands
-
-cli_command(__name__, 'sf application package copy', 'azure.cli.command_modules.sf.custom#sf_copy_app_package')
 
 # Chaos commands
 

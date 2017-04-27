@@ -4,7 +4,6 @@
 # --------------------------------------------------------------------------------------------
 
 import os
-import sys
 import urllib.parse
 import requests
 
@@ -119,24 +118,18 @@ def sf_get_connection_endpoint():
 
 def sf_get_cert_info():
     az_config.config_parser.read(CONFIG_PATH)
-    security_type = az_config.get("servicefabric", "security", fallback=None)
-    if security_type is "pem":
+    security_type = str(az_config.get("servicefabric", "security", fallback=""))
+    if security_type == "pem":
         pem_path = az_config.get("servicefabric", "pem_path", fallback=None)
         return pem_path
-    elif security_type is "cert":
+    elif security_type == "cert":
         cert_path = az_config.get("servicefabric", "cert_path", fallback=None)
         key_path = az_config.get("servicefabric", "key_path", fallback=None)
         return cert_path, key_path
-    elif security_type is "none":
+    elif security_type == "none":
         return None
     else:
         raise CLIError("Cluster security type not set")
-
-    cert_path = az_config.get('servicefabric', 'cert_path', fallback=None)
-    key_path = az_config.get('servicefabric', 'key_path', fallback=None)
-    pem_path = az_config.get('servicefabric', 'pem_path', fallback=None)
-
-    return (cert_path, key_path, pem_path)
 
 class FileIter: # pylint: disable=too-few-public-methods
     def __init__(self, file, rel_file_path, print_progress):
@@ -155,10 +148,14 @@ class FileIter: # pylint: disable=too-few-public-methods
             self.print_progress(len(chunk), self.rel_file_path)
             return chunk
 
-def sf_copy_app_package(path):
+def sf_upload_app(path):
     abspath = os.path.abspath(path)
     basename = os.path.basename(abspath)
     endpoint = sf_get_connection_endpoint()
+    cert = sf_get_cert_info()
+    ca_cert = False
+    if cert is not None:
+        ca_cert = sf_get_ca_cert_info()
     total_files_count = 0
     current_files_count = 0
     total_files_size = 0
@@ -173,12 +170,11 @@ def sf_copy_app_package(path):
     def print_progress(size, rel_file_path):
         nonlocal current_files_size
         current_files_size += size
-        sys.stdout.write("\r\033[K")
-        print('[{}/{}] files, [{}/{}] bytes, {}'.format(current_files_count,
-                                                        total_files_count,
-                                                        current_files_size,
-                                                        total_files_size,
-                                                        rel_file_path),
+        print('\r\033[K\r[{}/{}] files, [{}/{}] bytes, {}'.format(current_files_count,
+                                                                  total_files_count,
+                                                                  current_files_size,
+                                                                  total_files_size,
+                                                                  rel_file_path),
               end="\r")
     for root, _, files in os.walk(abspath):
         rel_path = os.path.normpath(os.path.relpath(root, abspath))
@@ -192,7 +188,7 @@ def sf_copy_app_package(path):
                 url = urllib.parse.urlunparse(url_parsed)
                 file_iter = FileIter(file_opened, os.path.normpath(
                     os.path.join(rel_path, file)), print_progress)
-                _ = requests.put(url, data=file_iter)
+                requests.put(url, data=file_iter, cert=cert, verify=ca_cert)
                 current_files_count += 1
                 print_progress(0, os.path.normpath(os.path.join(rel_path, file)))
         url_path = os.path.normpath(os.path.join('ImageStore', basename,
@@ -200,14 +196,14 @@ def sf_copy_app_package(path):
         url_parsed = list(urllib.parse.urlparse(endpoint))
         url_parsed[2] = url_path
         url_parsed[4] = urllib.parse.urlencode({'api-version': '3.0-preview'})
-        _ = requests.put(url)
+        requests.put(url, cert=cert, verify=ca_cert)
         current_files_count += 1
         print_progress(0, os.path.normpath(os.path.join(rel_path, '_.dir')))
-    sys.stdout.write("\r\033[K")
-    print('[{}/{}] files, [{}/{}] bytes sent'.format(current_files_count,
-                                                     total_files_count,
-                                                     current_files_size,
-                                                     total_files_size))
+
+    print('\r\033[K\r[{}/{}] files, [{}/{}] bytes sent'.format(current_files_count,
+                                                               total_files_count,
+                                                               current_files_size,
+                                                               total_files_size))
 
 def sf_create_app(name, app_type, version, parameters=None, min_node_count=0, max_node_count=0, metrics=None):
     """
