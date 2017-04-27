@@ -209,16 +209,44 @@ def sf_copy_app_package(path):
                                                      current_files_size,
                                                      total_files_size))
 
-def sf_create_app(name, type_name, type_version, parameters=None, app_capacity=None):
+def sf_create_app(name, app_type, version, parameters=None, # pylint: disable=too-many-arguments
+                  min_node_count=0, max_node_count=0, metrics=None):
     """
     Creates a Service Fabric application using the specified description
 
-    :param dict param_list: dict of parameters to be applied when the application is created
+    :param str name: Application name
+    :param str app_type: Application type
+    :param str version: Application version
+    :param long min_node_count: The minimum number of nodes where Service Fabric
+    will reserve capacity for this application. Note that this does not mean
+    that the services of this application will be placed on all of those
+    nodes.
+    :param long max_node_count: The maximum number of nodes where Service Fabric
+    will reserve capacity for this application. Note that this does not mean
+    that the services of this application will be placed on all of those
+    nodes.
     """
     from azure.servicefabric.models.application_description import ApplicationDescription
     from azure.servicefabric.models.application_parameter import ApplicationParameter
+    from azure.servicefabric.models.application_capacity_description \
+    import ApplicationCapacityDescription
 
-    # TODO, waiting on CLI guys to explain best way to handle arbitary user dicts
+    if min_node_count > max_node_count:
+        raise CLIError("Note, the minimum node reserve capacity count cannot \
+        be more than the maximum node count")
+
+    app_params = None
+    if parameters is not None:
+        app_params = []
+        for k in parameters:
+            # Create an application parameter for every of these
+            p = ApplicationParameter(k, parameters[k])
+            app_params.append(p)
+    
+    app_metrics = None
+    if metrics is not None:
+        app_metrics = []
+
 
 def sf_upgrade_app():
     """

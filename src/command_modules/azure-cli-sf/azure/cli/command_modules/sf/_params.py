@@ -3,13 +3,16 @@
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # --------------------------------------------------------------------------------------------
 
-# pylint: disable=line-too-long
-
-from azure.cli.core.commands import register_cli_argument
-
 from azure.cli.core.sdk.util import ParametersContext
 from azure.cli.core.util import get_json_object
 
-with ParametersContext(command="sf application create")  as c:
+# For some commands we take JSON strings as possible
+with ParametersContext(command="sf application create") as c:
     c.register("parameters", ("--parameters",), type=get_json_object,
-               help="JSON encoded application parameters")
+               help="JSON encoded list of application parameters")
+
+with ParametersContext(command="sf application create") as c:
+    c.register("metrics", ("--metrics",), type=get_json_object,
+               help="JSON encoded list of application metrics and their \
+               descriptions. These can be generated using `az sf application \
+               gen-metrics")
