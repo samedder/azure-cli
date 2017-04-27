@@ -119,14 +119,14 @@ def sf_get_connection_endpoint():
 def sf_get_cert_info():
     az_config.config_parser.read(CONFIG_PATH)
     security_type = str(az_config.get("servicefabric", "security", fallback=""))
-    if security_type is "pem":
+    if security_type == "pem":
         pem_path = az_config.get("servicefabric", "pem_path", fallback=None)
         return pem_path
-    elif security_type is "cert":
+    elif security_type == "cert":
         cert_path = az_config.get("servicefabric", "cert_path", fallback=None)
         key_path = az_config.get("servicefabric", "key_path", fallback=None)
         return cert_path, key_path
-    elif security_type is "none":
+    elif security_type == "none":
         return None
     else:
         raise CLIError("Cluster security type not set")
@@ -167,10 +167,10 @@ def sf_upload_app(path):
         nonlocal current_files_size
         current_files_size += size
         print('\r\033[K\r[{}/{}] files, [{}/{}] bytes, {}'.format(current_files_count,
-                                                        total_files_count,
-                                                        current_files_size,
-                                                        total_files_size,
-                                                        rel_file_path),
+                                                                  total_files_count,
+                                                                  current_files_size,
+                                                                  total_files_size,
+                                                                  rel_file_path),
               end="\r")
     for root, _, files in os.walk(abspath):
         rel_path = os.path.normpath(os.path.relpath(root, abspath))
@@ -196,6 +196,6 @@ def sf_upload_app(path):
         current_files_count += 1
         print_progress(0, os.path.normpath(os.path.join(rel_path, '_.dir')))
     print('\r\033[K\r[{}/{}] files, [{}/{}] bytes sent'.format(current_files_count,
-                                                     total_files_count,
-                                                     current_files_size,
-                                                     total_files_size))
+                                                               total_files_count,
+                                                               current_files_size,
+                                                               total_files_size))
