@@ -29,6 +29,8 @@ cli_command(__name__, 'sf service report-health', 'azure.servicefabric#ServiceFa
 cli_command(__name__, 'sf service create', 'azure.cli.command_modules.sf.custom#sf_create_service')
 cli_command(__name__, 'sf service description', 'azure.servicefabric#ServiceFabricClientAPIs.get_service_description', cf_sf_client)
 cli_command(__name__, 'sf service update', 'azure.cli.command_modules.sf.custom#sf_update_service')
+cli_command(__name__, 'sf service health', 'azure.servicefabric#ServiceFabricClientAPIs.get_service_health', cf_sf_client)
+cli_command(__name__, 'sf service health-policy', 'azure.servicefabric#ServiceFabricClientAPIs.get_service_health_using_policy', cf_sf_client)
 
 # Partition commands
 
