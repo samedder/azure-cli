@@ -433,7 +433,7 @@ def sup_placement_policies(formatted_placement_policies):
     import ServicePlacementRequireDomainDistributionPolicyDescription
 
     r = None
-    if formatted_placement_policies:
+    if formatted_placement_policies is not None:
         r = []
         valid_policies = [
             "NonPartiallyPlaceService",
@@ -477,6 +477,49 @@ def sup_validate_move_cost(move_cost):
         if move_cost not in valid_costs:
             raise CLIError("Invalid move cost specified")
 
+def sup_stateful_flags(rep_restart_wait=None, quorum_loss_wait=None,
+                       standby_replica_keep=None):
+    f = 0
+    if rep_restart_wait is not None:
+        f += 1
+    if quorum_loss_wait is not None:
+        f += 2
+    if standby_replica_keep is not None:
+        f += 4
+    return f
+
+def sup_service_update_flags(target_rep_size=None, instance_count=None,
+                             rep_restart_wait=None,
+                             quorum_loss_wait=None,
+                             standby_rep_keep=None,
+                             min_rep_size=None,
+                             placement_constraints=None,
+                             placement_policy=None,
+                             correlation=None,
+                             metrics=None,
+                             move_cost=None):
+    f = 0
+    if (target_rep_size is not None) or (instance_count is not None):
+        f += 1
+    if rep_restart_wait is not None:
+        f += 2
+    if quorum_loss_wait is not None:
+        f += 4
+    if standby_rep_keep is not None:
+        f += 8
+    if min_rep_size is not None:
+        f += 16
+    if placement_constraints is not None:
+        f += 32
+    if placement_policy is not None:
+        f += 64
+    if correlation is not None:
+        f += 128
+    if metrics is not None:
+        f += 256
+    if move_cost is not None:
+        f += 512
+    return f
 
 def sf_create_service(app_name, name, type, stateful=False, stateless=False, # pylint: disable=R0913
                       singleton_scheme=False, named_scheme=False,
@@ -581,6 +624,8 @@ def sf_create_service(app_name, name, type, stateful=False, stateless=False, # p
     corre = sup_correlation_scheme(correlated_service, correlation)
     load_list = sup_load_metrics(load_metrics)
     place_policy = sup_placement_policies(placement_policy_list)
+    flags = sup_stateful_flags(replica_restart_wait, quorum_loss_wait,
+                               stand_by_replica_keep)
 
     # API weirdness where we both have to specify a move cost, and a indicate
     # the existence of a default move cost
@@ -601,7 +646,6 @@ def sf_create_service(app_name, name, type, stateful=False, stateless=False, # p
     if stateful:
         if instance_count is not None:
             CLIError("Cannot specify instance count for a stateful service")
-
         sd = StatefulServiceDescription(name, type, part_schema,
                                         target_replica_set_size,
                                         min_replica_set_size,
@@ -609,7 +653,7 @@ def sf_create_service(app_name, name, type, stateful=False, stateless=False, # p
                                         app_name, None, constraints,
                                         corre, load_list, place_policy,
                                         move_cost, move_cost_specified,
-                                        activation_mode, dns_name, None,
+                                        activation_mode, dns_name, flags,
                                         replica_restart_wait, quorum_loss_wait,
                                         stand_by_replica_keep)
 
@@ -629,7 +673,6 @@ def sf_create_service(app_name, name, type, stateful=False, stateless=False, # p
         if stand_by_replica_keep is not None:
             CLIError("Cannot specify standby replica keep duration for \
             stateless service")
-
         sd = StatelessServiceDescription(name, type, part_schema,
                                          instance_count, app_name, None,
                                          constraints, corre, load_list,
@@ -640,7 +683,6 @@ def sf_create_service(app_name, name, type, stateful=False, stateless=False, # p
     sf_client = cf_sf_client(None)
     sf_client.create_service(app_name, sd)
 
-    # TODO Verify flags do not need to be set
     # TODO Improve parameter set usage display and also validation
 
     # TODO Consider supporting initialization data for service create
@@ -707,12 +749,19 @@ def sf_update_service(name, stateless=False, stateful=False, constraints=None,
     if move_cost is not None:
         sup_validate_move_cost(move_cost)
 
+    flags = sup_service_update_flags(target_replica_set_size, instance_count,
+                                     replica_restart_wait, quorum_loss_wait,
+                                     stand_by_replica_keep,
+                                     min_replica_set_size, constraints,
+                                     place_policy, corre, load_list,
+                                     move_cost)
+
     sud = None
     if stateful:
         if instance_count is not None:
             CLIError("Cannot specify instance count for a stateful service")
 
-        sud = StatefulServiceUpdateDescription(None, constraints, corre,
+        sud = StatefulServiceUpdateDescription(flags, constraints, corre,
                                                load_list, place_policy,
                                                move_cost,
                                                target_replica_set_size,
@@ -738,7 +787,7 @@ def sf_update_service(name, stateless=False, stateful=False, constraints=None,
             CLIError("Cannot specify standby replica keep duration for \
             stateless service")
 
-        sud = StatelessServiceDescription(None, constraints, corre, load_list,
+        sud = StatelessServiceDescription(flags, constraints, corre, load_list,
                                           place_policy, move_cost,
                                           instance_count)
 
