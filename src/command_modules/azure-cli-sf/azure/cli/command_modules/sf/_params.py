@@ -26,12 +26,12 @@ with ParametersContext(command="sf application upgrade") as c:
 with ParametersContext(command="sf application upgrade") as c:
     c.register("default_service_health_policy",
                ("--default_service_health_policy",),
-               type=get_json_object, help="JSON encoded specification of the \
-               health policy used by default to evaluate the health of a \
-               service type.")
+               type=get_json_object,
+               help="JSON encoded specification of the health policy used by \
+               default to evaluate the health of a service type.")
 
 with ParametersContext(command="sf application upgrade") as c:
     c.register("service_health_policy", ("--service_health_policy",),
-               type=get_json_object, help="JSON encoded map with service type \
-               health policy per service type name. The map is empty be \
-               default.")
+               type=get_json_object,
+               help="JSON encoded map with service type health policy per \
+               service type name. The map is empty be default.")
