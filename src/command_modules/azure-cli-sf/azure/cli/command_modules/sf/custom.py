@@ -152,6 +152,10 @@ def sf_upload_app(path):
     abspath = os.path.abspath(path)
     basename = os.path.basename(abspath)
     endpoint = sf_get_connection_endpoint()
+    cert = sf_get_cert_info()
+    ca_cert = False
+    if cert is not None:
+        ca_cert = sf_get_ca_cert_info()
     total_files_count = 0
     current_files_count = 0
     total_files_size = 0
@@ -184,7 +188,7 @@ def sf_upload_app(path):
                 url = urllib.parse.urlunparse(url_parsed)
                 file_iter = FileIter(file_opened, os.path.normpath(
                     os.path.join(rel_path, file)), print_progress)
-                _ = requests.put(url, data=file_iter)
+                requests.put(url, data=file_iter, cert=cert, verify=ca_cert)
                 current_files_count += 1
                 print_progress(0, os.path.normpath(os.path.join(rel_path, file)))
         url_path = os.path.normpath(os.path.join('ImageStore', basename,
@@ -192,7 +196,7 @@ def sf_upload_app(path):
         url_parsed = list(urllib.parse.urlparse(endpoint))
         url_parsed[2] = url_path
         url_parsed[4] = urllib.parse.urlencode({'api-version': '3.0-preview'})
-        _ = requests.put(url)
+        requests.put(url, cert=cert, verify=ca_cert)
         current_files_count += 1
         print_progress(0, os.path.normpath(os.path.join(rel_path, '_.dir')))
     print('\r\033[K\r[{}/{}] files, [{}/{}] bytes sent'.format(current_files_count,
