@@ -53,6 +53,8 @@ cli_command(__name__, 'sf node replica-list', 'azure.servicefabric#ServiceFabric
 cli_command(__name__, 'sf node load', 'azure.servicefabric#ServiceFabricClientAPIs.get_node_load_info', cf_sf_client)
 cli_command(__name__, 'sf node health', 'azure.servicefabric#ServiceFabricClientAPIs.get_node_health', cf_sf_client)
 cli_command(__name__, 'sf node report-health', 'azure.servicefabric#ServiceFabricClientAPIs.report_node_health', cf_sf_client)
+cli_command(__name__, 'sf node service-package-list', 'azure.servicefabric#ServiceFabricClientAPIs.get_deployed_service_package_info_list', cf_sf_client)
+cli_command(__name__, 'sf node service-package', 'azure.servicefabric#ServiceFabricClientAPIs.get_deployed_service_package_info_list_by_name', cf_sf_client)
 
 # Cluster commands
 
