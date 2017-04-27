@@ -13,6 +13,12 @@ from azure.cli.command_modules.sf._factory import cf_sf_client
 cli_command(__name__, 'sf application health', 'azure.servicefabric#ServiceFabricClientAPIs.get_application_health', cf_sf_client)
 cli_command(__name__, 'sf application manifest', 'azure.servicefabric#ServiceFabricClientAPIs.get_application_type_manifest', cf_sf_client)
 cli_command(__name__, 'sf application report-health', 'azure.servicefabric#ServiceFabricClientAPIs.report_application_health', cf_sf_client)
+cli_command(__name__, 'sf application provision', 'azure.servicefabric#ServiceFabricClientAPIs.provision_application', cf_sf_client)
+cli_command(__name__, 'sf application create', 'azure.cli.command_modules.sf.custom#sf_create_app')
+cli_command(__name__, 'sf application delete', 'azure.servicefabric#ServiceFabricClientAPIs.delete_application', cf_sf_client)
+cli_command(__name__, 'sf application unprovision', 'azure.servicefabric#ServiceFabricClientAPIs.unprovision_application', cf_sf_client)
+cli_command(__name__, 'sf application upgrade', 'azure.cli.command_modules.sf.custom#sf_upgrade_app')
+
 
 # Service commands
 
@@ -20,6 +26,8 @@ cli_command(__name__, 'sf service list', 'azure.servicefabric#ServiceFabricClien
 cli_command(__name__, 'sf service manifest', 'azure.servicefabric#ServiceFabricClientAPIs.get_service_manifest', cf_sf_client)
 cli_command(__name__, 'sf service application-name', 'azure.servicefabric#ServiceFabricClientAPIs.get_application_name', cf_sf_client)
 cli_command(__name__, 'sf service report-health', 'azure.servicefabric#ServiceFabricClientAPIs.report_service_health', cf_sf_client)
+cli_command(__name__, 'sf service create', 'azure.cli.command_modules.sf.custom#sf_create_service')
+
 
 # Partition commands
 

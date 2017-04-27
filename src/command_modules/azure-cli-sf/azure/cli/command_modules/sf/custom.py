@@ -208,3 +208,52 @@ def sf_copy_app_package(path):
                                                      total_files_count,
                                                      current_files_size,
                                                      total_files_size))
+
+def sf_create_app(name, type_name, type_version, parameters=None, app_capacity=None):
+    """
+    Creates a Service Fabric application using the specified description
+
+    :param dict param_list: dict of parameters to be applied when the application is created
+    """
+    from azure.servicefabric.models.application_description import ApplicationDescription
+    from azure.servicefabric.models.application_parameter import ApplicationParameter
+
+    # TODO, waiting on CLI guys to explain best way to handle arbitary user dicts
+
+def sf_upgrade_app():
+    """
+
+    """
+    from azure.servicefabric.models.application_description import ApplicationDescription
+    from azure.servicefabric.models.application_parameter import ApplicationParameter
+
+    # TODO, waiting on CLI guys to explain best way to handle arbitary user dicts
+
+def sf_create_service(app_name, name, type, singleton_scheme=False, 
+                      named_scheme=False, int_scheme=False):
+    """
+    Creates a Service Fabric application using the specified description
+
+    :param str app_name: Name of the parent application for the service
+    :param str name: Name of the service to be created
+    :param str type: Name of the service type to be created
+    :param bool singleton_scheme: Indicates the service should have a single
+    partition, or be not partition. Each service must have only one partition
+    scheme
+    :param bool named_scheme: Indicates the service should be partitioned by
+    using string names as keys. Each service must have only one partition scheme
+    :param bool int_scheme: Indicates the service should be partitioned across
+    a uniform range of unsigned integers. Each service must have only one
+    partition scheme
+    """
+    from azure.servicefabric.models.service_description import ServiceDescription
+    from azure.servicefabric.models.named_partition_scheme_description \
+    import NamedPartitionSchemeDescription
+    from azure.servicefabric.models.singleton_partition_scheme_description \
+    import SingletonPartitionSchemeDescription
+    from azure.servicefabric.models.uniform_int64_range_partition_scheme_description \
+    import UniformInt64RangePartitionSchemeDescription
+
+    if not sum([singleton_scheme, named_scheme, int_scheme]) is 1:
+        raise CLIError("Specify exactly  one partition scheme")
+    
