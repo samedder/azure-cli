@@ -49,3 +49,17 @@ with ParametersContext(command="sf service create") as c:
                and any associated domain names. Policies can be one or more \
                of: `NonPartiallyPlaceService`, `PreferPrimaryDomain`, \
                `RequireDomain`, `requireDomainDistribution`")
+
+with ParametersContext(command="sf service update") as c:
+    c.register("load_metrics", ("--load_metrics",),
+               type=get_json_object,
+               help="JSON encoded list of metrics used when load balancing \
+               services across nodes.")
+
+with ParametersContext(command="sf service update") as c:
+    c.register("placement_policy_list", ("--placement_policy_list",),
+               type=get_json_object,
+               help="JSON encoded list of placement policies for the service, \
+               and any associated domain names. Policies can be one or more \
+               of: `NonPartiallyPlaceService`, `PreferPrimaryDomain`, \
+               `RequireDomain`, `requireDomainDistribution`")

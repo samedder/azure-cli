@@ -392,20 +392,116 @@ def sf_upgrade_app(name, version, parameters, mode="UnmonitoredAuto", # pylint: 
     # TODO consider additional parameter validation here rather than allowing
     # the gateway to reject it and return failure response
 
-def sf_create_service(app_name, name, type, singleton_scheme=False,
-                      named_scheme=False, int_scheme=False,
-                      named_scheme_list=None, int_scheme_low=None,
-                      int_scheme_high=None, int_scheme_count=None,
-                      constraints=None, correlated_service=None,
-                      correlation=None, load_metrics=None, 
-                      placement_policy_list=None, move_cost=None,
-                      activation_mode=None, dns_name=None):
+
+def sup_correlation_scheme(correlated_service, correlation):
+    from azure.servicefabric.models.service_correlation_description \
+    import ServiceCorrelationDescription
+
+    r = None
+    if any([correlated_service, correlation]):
+        if not all([correlated_service, correlation]):
+            raise CLIError("Must specify both a correlation service and \
+            correlation scheme")
+        r = ServiceCorrelationDescription(correlation, correlated_service)
+    return r
+
+def sup_load_metrics(formatted_metrics):
+    from azure.servicefabric.models.service_load_metric_description \
+    import ServiceLoadMetricDescription
+
+    r = None
+    if formatted_metrics is not None:
+        r = []
+        for l in formatted_metrics:
+            l_name = l.get("name", None)
+            if l_name is None:
+                raise CLIError("Could not find specified load metric name")
+            l_weight = l.get("weight", None)
+            l_primary = l.get("primary_default_load", None)
+            l_secondary = l.get("secondary_default_load", None)
+            l_default = l.get("default_load", None)
+            l_desc = ServiceLoadMetricDescription(l_name, l_weight, l_primary,
+                                                  l_secondary, l_default)
+            r.append(l_desc)
+
+    return r
+
+def sup_placement_policies(formatted_placement_policies):
+    from azure.servicefabric.models.service_placement_non_partially_place_service_policy_description \
+    import ServicePlacementNonPartiallyPlaceServicePolicyDescription
+    from azure.servicefabric.models.service_placement_prefer_primary_domain_policy_description \
+    import ServicePlacementPreferPrimaryDomainPolicyDescription
+    from azure.servicefabric.models.service_placement_required_domain_policy_description \
+    import ServicePlacementRequiredDomainPolicyDescription
+    from azure.servicefabric.models.service_placement_require_domain_distribution_policy_description \
+    import ServicePlacementRequireDomainDistributionPolicyDescription
+
+    r = None
+    if formatted_placement_policies:
+        r = []
+        valid_policies = [
+            "NonPartiallyPlaceService",
+            "PreferPrimaryDomain",
+            "RequireDomain",
+            "RequireDomainDistribution"
+        ]
+        # Not entirely documented but similar to the property names
+        for p in formatted_placement_policies:
+            p_type = p.get("type", None)
+            if p_type is None:
+                raise CLIError("Could not determine type of specified \
+                placement policy")
+            if p_type not in valid_policies:
+                raise CLIError("Invalid type of placement policy specified")
+            p_domain_name = p.get("domain_name", None)
+            if (p_domain_name is None) and (p_type != "NonPartiallyPlaceService"):
+                raise CLIError("Placement policy type requires target domain \
+                name")
+            if p_type == "NonPartiallyPlaceService":
+                p_policy = ServicePlacementNonPartiallyPlaceServicePolicyDescription()
+            elif p_type == "PreferPrimaryDomain":
+                p_policy = ServicePlacementPreferPrimaryDomainPolicyDescription(p_domain_name)
+            elif p_type == "RequireDomain":
+                p_policy = ServicePlacementRequiredDomainPolicyDescription(p_domain_name)
+            elif p_type == "RequireDomainDistribution":
+                p_policy = ServicePlacementRequireDomainDistributionPolicyDescription(p_domain_name)
+            r.append(p_policy)
+
+    return r
+
+def sup_validate_move_cost(move_cost):
+
+    if move_cost is not None:
+        valid_costs = [
+            "Zero",
+            "Low",
+            "Medium",
+            "High"
+        ]
+        if move_cost not in valid_costs:
+            raise CLIError("Invalid move cost specified")
+
+
+def sf_create_service(app_name, name, type, stateful=False, stateless=False, # pylint: disable=R0913
+                      singleton_scheme=False, named_scheme=False,
+                      int_scheme=False, named_scheme_list=None,
+                      int_scheme_low=None, int_scheme_high=None,
+                      int_scheme_count=None, constraints=None,
+                      correlated_service=None, correlation=None,
+                      load_metrics=None, placement_policy_list=None,
+                      move_cost=None, activation_mode=None, dns_name=None,
+                      target_replica_set_size=None, min_replica_set_size=None,
+                      replica_restart_wait=None, quorum_loss_wait=None,
+                      stand_by_replica_keep=None, no_persisted_state=False,
+                      instance_count=None):
     """
     Creates the specified Service Fabric service from the description.
 
     :param str app_name: The identity of the parent application. This is
     typically the full name of the application without the 'fabric:' URI scheme.
     :param str name: Name of the service.
+    :param bool stateless: Indicates the service is a stateless service.
+    :param bool stateful: Indicates the service is a stateful service.
     :param str type: Name of the service type.
     :param bool singleton_scheme: Indicates the service should have a single
     partition or be a non-partitioned service.
@@ -436,26 +532,35 @@ def sf_create_service(app_name, name, type, singleton_scheme=False,
     Possible values include: 'SharedProcess', 'ExclusiveProcess'.
     :param str dns_name: The DNS name of the service to be created. The Service
     Fabric DNS system service must be enabled for this setting.
+    :param int target_replica_set_size: The target replica set size as a number.
+    This applies to stateful services only.
+    :param int min_replica_set_size: The minimum replica set size as a number.
+    This applies to stateful services only.
+    :param int replica_restart_wait: The duration, in seconds, between when a
+    replica goes down and when a new replica is created. This applies to
+    stateful services only.
+    :param int quorum_loss_wait: The maximum duration, in seconds, for which a
+    partition is allowed to be in a state of quorum loss. This applies to
+    stateful services only.
+    :param int stand_by_replica_keep: The maximum duration, in seconds,  for
+    which StandBy replicas will be maintained before being removed. This applies
+    to stateful services only.
+    :param bool no_persisted_state: If true, this indicates the service has no
+    persistent state stored on the local disk, or it only stores state in
+    memory.
+    :param int instance_count: The instance count. This applies to stateless
+    services only.
     """
-    from azure.servicefabric.models.service_description import ServiceDescription
+    from azure.servicefabric.models.stateless_service_description \
+    import StatelessServiceDescription
+    from azure.servicefabric.models.stateful_service_description \
+    import StatefulServiceDescription
     from azure.servicefabric.models.named_partition_scheme_description \
     import NamedPartitionSchemeDescription
     from azure.servicefabric.models.singleton_partition_scheme_description \
     import SingletonPartitionSchemeDescription
     from azure.servicefabric.models.uniform_int64_range_partition_scheme_description \
     import UniformInt64RangePartitionSchemeDescription
-    from azure.servicefabric.models.service_correlation_description \
-    import ServiceCorrelationDescription
-    from azure.servicefabric.models.service_load_metric_description \
-    import ServiceLoadMetricDescription
-    from azure.servicefabric.models.service_placement_non_partially_place_service_policy_description \
-    import ServicePlacementNonPartiallyPlaceServicePolicyDescription
-    from azure.servicefabric.models.service_placement_prefer_primary_domain_policy_description \
-    import ServicePlacementPreferPrimaryDomainPolicyDescription
-    from azure.servicefabric.models.service_placement_required_domain_policy_description \
-    import ServicePlacementRequiredDomainPolicyDescription
-    from azure.servicefabric.models.service_placement_require_domain_distribution_policy_description \
-    import ServicePlacementRequireDomainDistributionPolicyDescription
     from azure.cli.command_modules.sf._factory import cf_sf_client
 
     if sum([singleton_scheme, named_scheme, int_scheme]) is not 1:
@@ -477,71 +582,15 @@ def sf_create_service(app_name, name, type, singleton_scheme=False,
                                                                   int_scheme_low,
                                                                   int_scheme_high)
 
-    corre = None
-    if any([correlated_service, correlation]):
-        if not all([correlated_service, correlation]):
-            raise CLIError("Must specify both a correlation service and \
-            correlation scheme")
-        corre = ServiceCorrelationDescription(correlation, correlated_service)
-
-    load_list = None
-    if load_metrics is not None:
-        load_list = []
-        for l in load_metrics:
-            l_name = l.get("name", None)
-            if l_name is None:
-                raise CLIError("Could not find specified load metric name")
-            l_weight = l.get("weight", None)
-            l_primary = l.get("primary_default_load", None)
-            l_secondary = l.get("secondary_default_load", None)
-            l_default = l.get("default_load", None)
-            l_desc = ServiceLoadMetricDescription(l_name, l_weight, l_primary,
-                                                  l_secondary, l_default)
-            load_list.append(l_desc)
-
-    place_policy = None
-    if placement_policy_list:
-        place_policy = []
-        valid_policies = [
-            "NonPartiallyPlaceService",
-            "PreferPrimaryDomain",
-            "RequireDomain",
-            "RequireDomainDistribution"
-        ]
-        # Not entirely documented but similar to the property names
-        for p in placement_policy_list:
-            p_type = p.get("type", None)
-            if p_type is None:
-                raise CLIError("Could not determine type of specified \
-                placement policy")
-            if p_type not in valid_policies:
-                raise CLIError("Invalid type of placement policy specified")
-            p_domain_name = p.get("domain_name", None)
-            if (p_domain_name is None) and (p_type != "NonPartiallyPlaceService"):
-                raise CLIError("Placement policy type requires target domain \
-                name")
-            if p_type == "NonPartiallyPlaceService":
-                p_policy = ServicePlacementNonPartiallyPlaceServicePolicyDescription()
-            elif p_type == "PreferPrimaryDomain":
-                p_policy = ServicePlacementPreferPrimaryDomainPolicyDescription(p_domain_name)
-            elif p_type == "RequireDomain":
-                p_policy = ServicePlacementRequiredDomainPolicyDescription(p_domain_name)
-            elif p_type == "RequireDomainDistribution":
-                p_policy = ServicePlacementRequireDomainDistributionPolicyDescription(p_domain_name)
-            place_policy.append(p_policy)
+    corre = sup_correlation_scheme(correlated_service, correlation)
+    load_list = sup_load_metrics(load_metrics)
+    place_policy = sup_placement_policies(placement_policy_list)
 
     # API weirdness where we both have to specify a move cost, and a indicate
     # the existence of a default move cost
     move_cost_specified = None
     if move_cost is not None:
-        valid_costs = [
-            "Zero",
-            "Low",
-            "Medium",
-            "High"
-        ]
-        if move_cost not in valid_costs:
-            raise CLIError("Invalid move cost specified")
+        sup_validate_move_cost(move_cost)
         move_cost_specified = True
 
     if activation_mode is not None:
@@ -552,10 +601,150 @@ def sf_create_service(app_name, name, type, singleton_scheme=False,
         if activation_mode not in valid_modes:
             raise CLIError("Invalid activation mode specified")
 
-    sd = ServiceDescription(name, type, part_schema, app_name, None,
-                            constraints, corre, load_list, place_policy,
-                            move_cost, move_cost_specified, activation_mode,
-                            dns_name)
+    sd = None
+    if stateful:
+        if instance_count is not None:
+            CLIError("Cannot specify instance count for a stateful service")
+
+        sd = StatefulServiceDescription(name, type, part_schema,
+                                        target_replica_set_size,
+                                        min_replica_set_size,
+                                        not no_persisted_state,
+                                        app_name, None, constraints,
+                                        corre, load_list, place_policy,
+                                        move_cost, move_cost_specified,
+                                        activation_mode, dns_name, None,
+                                        replica_restart_wait, quorum_loss_wait,
+                                        stand_by_replica_keep)
+
+    if stateless:
+        if target_replica_set_size is not None:
+            CLIError("Cannot specify target replica set size for stateless \
+            service")
+        if min_replica_set_size is not None:
+            CLIError("Cannot specify minimum replica set size for stateless \
+            service")
+        if replica_restart_wait is not None:
+            CLIError("Cannot specify replica restart wait duration for \
+            stateless service")
+        if quorum_loss_wait is not None:
+            CLIError("Cannot specify quorum loss wait duration for stateless \
+            service")
+        if stand_by_replica_keep is not None:
+            CLIError("Cannot specify standby replica keep duration for \
+            stateless service")
+
+        sd = StatelessServiceDescription(name, type, part_schema,
+                                         instance_count, app_name, None,
+                                         constraints, corre, load_list,
+                                         place_policy, move_cost,
+                                         move_cost_specified, activation_mode,
+                                         dns_name)
 
     sf_client = cf_sf_client(None)
     sf_client.create_service(app_name, sd)
+
+    # TODO Verify flags do not need to be set
+    # TODO Improve parameter set usage display and also validation
+
+    # TODO Consider supporting initialization data for service create
+
+def sf_update_service(name, stateless=False, stateful=False, constraints=None,
+                      correlation=None, correlated_service=None,
+                      load_metrics=None, placement_policy_list=None,
+                      move_cost=None, target_replica_set_size=None,
+                      min_replica_set_size=None, replica_restart_wait=None,
+                      quorum_loss_wait=None, stand_by_replica_keep=None,
+                      instance_count=None):
+    """
+    Updates the specified service using the given update description.
+
+    :param str name: Target service to update. This is typically the full name
+    of the service without the 'fabric:' URI scheme.
+    :param bool stateless: Indicates the target service is a stateless service.
+    :param bool stateful: Indicates the target service is a stateful service.
+    :param str constraints: The placement constraints as a string. Placement
+    constraints are boolean expressions on node properties and allow for
+    restricting a service to particular nodes based on the service requirements.
+    For example, to place a service on nodes where NodeType is blue specify the
+    following:"NodeColor == blue".
+    :param str correlation: Correlate the service with an existing service
+    using an alignment affinity. Possible values include: 'Invalid', 'Affinity',
+    'AlignedAffinity', 'NonAlignedAffinity'.
+    :param str correlated_service: Name of the target service to correlate with.
+    :param str move_cost: Specifies the move cost for the service. Possible
+    values are: 'Zero', 'Low', 'Medium', 'High'.
+    :param int target_replica_set_size: The target replica set size as a number.
+    This applies to stateful services only.
+    :param int min_replica_set_size: The minimum replica set size as a number.
+    This applies to stateful services only.
+    :param int replica_restart_wait: The duration, in seconds, between when a
+    replica goes down and when a new replica is created. This applies to
+    stateful services only.
+    :param int quorum_loss_wait: The maximum duration, in seconds, for which a
+    partition is allowed to be in a state of quorum loss. This applies to
+    stateful services only.
+    :param int stand_by_replica_keep: The maximum duration, in seconds,  for
+    which StandBy replicas will be maintained before being removed. This applies
+    to stateful services only.
+    :param int instance_count: The instance count. This applies to stateless
+    services only.
+    """
+    # TODO a few of these parameters are shared across commands, should be moved
+    # to not be bound to individual commands
+
+    # TODO Validation for replica numbers inputs
+
+    from azure.servicefabric.models.stateful_service_update_description \
+    import StatefulServiceUpdateDescription
+    from azure.servicefabric.models.stateless_service_description \
+    import StatelessServiceDescription
+    from azure.cli.command_modules.sf._factory import cf_sf_client
+
+    if sum([stateless, stateful]) != 1:
+        raise CLIError("Must specify either stateful or stateless, not both")
+
+    corre = sup_correlation_scheme(correlated_service, correlation)
+    load_list = sup_load_metrics(load_metrics)
+    place_policy = sup_placement_policies(placement_policy_list)
+
+    if move_cost is not None:
+        sup_validate_move_cost(move_cost)
+
+    sud = None
+    if stateful:
+        if instance_count is not None:
+            CLIError("Cannot specify instance count for a stateful service")
+
+        sud = StatefulServiceUpdateDescription(None, constraints, corre,
+                                               load_list, place_policy,
+                                               move_cost,
+                                               target_replica_set_size,
+                                               min_replica_set_size,
+                                               replica_restart_wait,
+                                               quorum_loss_wait,
+                                               stand_by_replica_keep)
+
+    if stateless:
+        if target_replica_set_size is not None:
+            CLIError("Cannot specify target replica set size for stateless \
+            service")
+        if min_replica_set_size is not None:
+            CLIError("Cannot specify minimum replica set size for stateless \
+            service")
+        if replica_restart_wait is not None:
+            CLIError("Cannot specify replica restart wait duration for \
+            stateless service")
+        if quorum_loss_wait is not None:
+            CLIError("Cannot specify quorum loss wait duration for stateless \
+            service")
+        if stand_by_replica_keep is not None:
+            CLIError("Cannot specify standby replica keep duration for \
+            stateless service")
+
+        sud = StatelessServiceDescription(None, constraints, corre, load_list,
+                                          place_policy, move_cost,
+                                          instance_count)
+
+    sf_client = cf_sf_client(None)
+    sf_client.update_service(name, sud)
