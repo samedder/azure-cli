@@ -19,7 +19,7 @@ cli_command(__name__, 'sf application delete', 'azure.servicefabric#ServiceFabri
 cli_command(__name__, 'sf application unprovision', 'azure.servicefabric#ServiceFabricClientAPIs.unprovision_application', cf_sf_client)
 cli_command(__name__, 'sf application upgrade', 'azure.cli.command_modules.sf.custom#sf_upgrade_app')
 cli_command(__name__, 'sf application upload', 'azure.cli.command_modules.sf.custom#sf_upload_app')
-
+cli_command(__name__, 'sf application package-delete', 'azure.servicefabric#ServiceFabricClientAPIs.delete_image_store_content', cf_sf_client)
 
 # Service commands
 
