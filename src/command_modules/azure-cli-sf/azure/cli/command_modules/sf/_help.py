@@ -15,6 +15,10 @@ helps["sf application"] = """
     type: group
     short-summary: Manage the applications running on a Service Fabric cluster
 """
+helps["sf chaos"] = """
+    type: group
+    short-summary: Manage the Service Fabric Chaos service, designed to simulate real failures
+"""
 helps["sf cluster"] = """
     type: group
     short-summary: Select and manage a Service Fabric cluster

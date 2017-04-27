@@ -63,3 +63,14 @@ with ParametersContext(command="sf service update") as c:
                and any associated domain names. Policies can be one or more \
                of: `NonPartiallyPlaceService`, `PreferPrimaryDomain`, \
                `RequireDomain`, `requireDomainDistribution`")
+
+with ParametersContext(command="sf chaos start") as c:
+    c.register("application_type_health_policy_map",
+               ("--application_type_health_policy_map",),
+               type=get_json_object,
+               help="JSON encoded list with max percentage unhealthy \
+               applications for specific application types. Each entry \
+               specifies as a key the application type name and as  a value an \
+               integer that represents the MaxPercentUnhealthyApplications \
+               percentage used to evaluate the applications of the specified \
+               application type.")

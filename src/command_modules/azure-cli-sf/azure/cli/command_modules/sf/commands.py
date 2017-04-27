@@ -80,3 +80,7 @@ cli_command(__name__, 'sf compose remove', 'azure.servicefabric#ServiceFabricCli
 # Package commands
 
 cli_command(__name__, 'sf application package copy', 'azure.cli.command_modules.sf.custom#sf_copy_app_package')
+
+# Chaos commands
+
+cli_command(__name__, 'sf chaos start', 'azure.cli.command_modules.sf.custom#sf_start_chaos')
