@@ -3,6 +3,7 @@
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # --------------------------------------------------------------------------------------------
 
+import adal
 import os
 import urllib.parse
 import requests
@@ -63,7 +64,8 @@ def sf_create_compose_application(application_name, file, repo_user=None,
     sf_client = cf_sf_client(None)
     sf_client.create_compose_application(model)
 
-def sf_select(endpoint, cert=None, key=None, pem=None, ca=None):
+def sf_select(endpoint, cert=None, key=None, pem=None, ca=None, aad=False):
+
     """
     Connects to a Service Fabric cluster endpoint.
 
@@ -81,12 +83,15 @@ def sf_select(endpoint, cert=None, key=None, pem=None, ca=None):
     """
     from azure.cli.core._config import set_global_config_value
 
-    usage = "--endpoint [ [ --key --cert | --pem ] --ca ]"
+    usage = "--endpoint [ [ --key --cert | --pem | --aad] --ca ]"
 
     if ca and not (pem or all([key, cert])):
         raise CLIError("Invalid syntax: " + usage)
 
     if any([cert, key]) and not all([cert, key]):
+        raise CLIError("Invalid syntax: " + usage)
+
+    if (aad is True) and any([pem,cert, key]):
         raise CLIError("Invalid syntax: " + usage)
 
     if pem and any([cert, key]):
@@ -99,6 +104,11 @@ def sf_select(endpoint, cert=None, key=None, pem=None, ca=None):
         set_global_config_value("servicefabric", "cert_path", cert)
         set_global_config_value("servicefabric", "key_path", key)
         set_global_config_value("servicefabric", "security", "cert")
+    elif aad:
+        accessToken = sf_get_aad_token()
+        print(accessToken)
+        set_global_config_value("servicefabric", "bearer", accessToken)
+        set_global_config_value("servicefabric", "security", "aad")
     else:
         set_global_config_value("servicefabric", "security", "none")
 
@@ -107,10 +117,29 @@ def sf_select(endpoint, cert=None, key=None, pem=None, ca=None):
 
     set_global_config_value("servicefabric", "endpoint", endpoint)
 
+
 def sf_get_ca_cert_info():
     az_config.config_parser.read(CONFIG_PATH)
     ca_cert = az_config.get("servicefabric", "ca_path", fallback=None)
     return ca_cert
+
+def sf_get_aad_token():
+    from azure.cli.command_modules.sf._factory import cf_sf_client
+    sf_client = cf_sf_client(None)
+    aad_matadata = sf_client.get_aad_metadata()
+    print(aad_metadata)
+
+    TenantId = 'c15cfcea-02c1-40dc-8466-fbd0ee0b05d2'
+    context = adal.AuthenticationContext('https://login.microsoftonline.com/' + TenantId)
+    RESOURCE = '08ad9f61-229d-4d7d-a9e6-953e1a0f97ff'
+    ClientId = 'b5e9b876-da41-42ba-ad5d-1e297c2a1f7f'
+
+    code = context.acquire_user_code(RESOURCE, ClientId)
+    print(code['message'])
+    token = context.acquire_token_with_device_code(RESOURCE, code, ClientId)
+
+    print("Succeed! Token expires in: " + (str)(token['expiresIn']) +" seconds")
+    return token['accessToken']
 
 def sf_get_connection_endpoint():
     az_config.config_parser.read(CONFIG_PATH)
@@ -565,7 +594,7 @@ def sf_create_service(app_name, name, type, stateful=False, stateless=False, # p
     using an alignment affinity. Possible values include: 'Invalid', 'Affinity',
     'AlignedAffinity', 'NonAlignedAffinity'.
     :param str correlated_service: Name of the target service to correlate with.
-    :param str move_cost: Specifies the move cost for the service. Possible 
+    :param str move_cost: Specifies the move cost for the service. Possible
     values are: 'Zero', 'Low', 'Medium', 'High'.
     :param str activation_mode: The activation mode for the service package.
     Possible values include: 'SharedProcess', 'ExclusiveProcess'.
