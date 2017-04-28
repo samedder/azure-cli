@@ -23,9 +23,6 @@ class ClientCertAuthentication(Authentication):
         if self.cert is not None:
             session.cert = self.cert
         if self.ca_cert is not None:
-#            session.verify = self.ca_cert
-            session.verify = False
-
-        session.verify = False
+            session.verify = self.ca_cert
 
         return session

@@ -113,21 +113,28 @@ def sf_select(endpoint, cert=None, key=None, pem=None, ca=None, aad=False):
         set_global_config_value("servicefabric", "security", "none")
 
     if ca:
+        set_global_config_value("servicefabric", "ca", "true")
         set_global_config_value("servicefabric", "ca_path", ca)
+    else:
+        set_global_config_value("servicefabric", "ca", "false")
 
     set_global_config_value("servicefabric", "endpoint", endpoint)
 
 
 def sf_get_ca_cert_info():
     az_config.config_parser.read(CONFIG_PATH)
-    ca_cert = az_config.get("servicefabric", "ca_path", fallback=None)
-    return ca_cert
+    use_ca = az_config.get("servicefabric", "ca", fallback=False)
+    if use_ca:
+        ca_cert = az_config.get("servicefabric", "ca_path", fallback=None)
+        return ca_cert
+    else:
+        return None
 
 def sf_get_aad_token():
     from azure.cli.command_modules.sf._factory import cf_sf_client
     sf_client = cf_sf_client(None)
     aad_matadata = sf_client.get_aad_metadata()
-    print(aad_metadata)
+    print(aad_matadata)
 
     TenantId = 'c15cfcea-02c1-40dc-8466-fbd0ee0b05d2'
     context = adal.AuthenticationContext('https://login.microsoftonline.com/' + TenantId)
