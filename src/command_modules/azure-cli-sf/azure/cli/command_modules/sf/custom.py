@@ -133,17 +133,23 @@ def sf_get_ca_cert_info():
 def sf_get_aad_token():
     from azure.cli.command_modules.sf._factory import cf_sf_client
     sf_client = cf_sf_client(None)
-    aad_matadata = sf_client.get_aad_metadata()
-    print(aad_matadata)
+    aad_metadata = sf_client.get_aad_metadata()
 
-    TenantId = 'c15cfcea-02c1-40dc-8466-fbd0ee0b05d2'
-    context = adal.AuthenticationContext('https://login.microsoftonline.com/' + TenantId)
-    RESOURCE = '08ad9f61-229d-4d7d-a9e6-953e1a0f97ff'
-    ClientId = 'b5e9b876-da41-42ba-ad5d-1e297c2a1f7f'
+    if aad_metadata.type != "aad":
+        raise CLIError("Not AAD cluster")
 
-    code = context.acquire_user_code(RESOURCE, ClientId)
+    aad_resource = aad_metadata.metadata
+
+    tenant_id = aad_resource.tenant
+    context = adal.AuthenticationContext(aad_resource.login + '/' + tenant_id, api_version=None)
+    cluster_id = aad_resource.cluster
+    client_id = aad_resource.client
+
+    print(cluster_id)
+
+    code = context.acquire_user_code(cluster_id, client_id)
     print(code['message'])
-    token = context.acquire_token_with_device_code(RESOURCE, code, ClientId)
+    token = context.acquire_token_with_device_code(cluster_id, code, client_id)
 
     print("Succeed! Token expires in: " + (str)(token['expiresIn']) +" seconds")
     return token['accessToken']
