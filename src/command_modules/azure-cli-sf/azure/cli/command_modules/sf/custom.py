@@ -850,7 +850,7 @@ def sf_create_service(  # pylint: disable=too-many-arguments, too-many-locals
     # Stateless service
     if stateful and instance_count is not None:
         raise CLIError("Cannot specify instance count for stateful services")
-    if stateless and instance_count is not None:
+    if stateless and instance_count is None:
         raise CLIError("Must specify instance count for stateless services")
     if stateless:
         svc_desc = StatelessServiceDescription(name, service_type,
