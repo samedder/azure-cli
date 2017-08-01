@@ -26,3 +26,19 @@ class ClientCertAuthentication(Authentication):
             session.verify = self.ca_cert
 
         return session
+
+class AadAuthentication(Authentication):
+    """
+    Azure Active Directory authentication for Service Fabric clusters
+    """
+    accessToken = None
+
+    def __init__(self, token):
+        self.accessToken = token
+
+    def signed_session(self):
+        session = super(AdalAuthentication, self).signed_session()
+
+        header = "{} {}".format("bearer", token)
+        session.headers['Authorization'] = header
+        return session

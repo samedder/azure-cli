@@ -15,11 +15,17 @@ def cf_sf_client(_):
         raise CLIError('Connection endpoint not specified, run `az sf cluster select` first.')
 
     cert = sf_get_cert_info()
-    if cert is not None:
-        ca_cert = sf_get_ca_cert_info()
+    ca_cert = sf_get_ca_cert_info()
+
+    security_type = str(az_config.get("servicefabric", "security", fallback=""))
+
+    if security_type == "aad"
+        print "factory aad"
+        token = str(az_config.get("servicefabric", "bearer", fallback=""))
+        auth = AadAuthentication(token)
     else:
-        ca_cert = None
-    auth = ClientCertAuthentication(cert, ca_cert)
+        auth = ClientCertAuthentication(cert, ca_cert)
+
     client = ServiceFabricClientAPIs(auth, base_url=endpoint)
     configure_common_settings(client)
     return client

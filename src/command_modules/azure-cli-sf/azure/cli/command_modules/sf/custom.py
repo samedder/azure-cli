@@ -3,6 +3,7 @@
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # --------------------------------------------------------------------------------------------
 
+import adal
 import os
 import urllib.parse
 import requests
@@ -63,7 +64,8 @@ def sf_create_compose_application(application_name, file, repo_user=None,
     sf_client = cf_sf_client(None)
     sf_client.create_compose_application(model)
 
-def sf_select(endpoint, cert=None, key=None, pem=None, ca=None):
+def sf_select(endpoint, cert=None, key=None, pem=None, ca=None, aad=False):
+
     """
     Connects to a Service Fabric cluster endpoint.
 
@@ -81,12 +83,15 @@ def sf_select(endpoint, cert=None, key=None, pem=None, ca=None):
     """
     from azure.cli.core._config import set_global_config_value
 
-    usage = "--endpoint [ [ --key --cert | --pem ] --ca ]"
+    usage = "--endpoint [ [ --key --cert | --pem | --aad] --ca ]"
 
     if ca and not (pem or all([key, cert])):
         raise CLIError("Invalid syntax: " + usage)
 
     if any([cert, key]) and not all([cert, key]):
+        raise CLIError("Invalid syntax: " + usage)
+
+    if (aad is True) and any([pem,cert, key]):
         raise CLIError("Invalid syntax: " + usage)
 
     if pem and any([cert, key]):
@@ -99,18 +104,58 @@ def sf_select(endpoint, cert=None, key=None, pem=None, ca=None):
         set_global_config_value("servicefabric", "cert_path", cert)
         set_global_config_value("servicefabric", "key_path", key)
         set_global_config_value("servicefabric", "security", "cert")
+    elif aad:
+        accessToken = sf_get_aad_token()
+        print(accessToken)
+        set_global_config_value("servicefabric", "bearer", accessToken)
+        set_global_config_value("servicefabric", "security", "aad")
     else:
         set_global_config_value("servicefabric", "security", "none")
 
     if ca:
+        set_global_config_value("servicefabric", "ca", "true")
         set_global_config_value("servicefabric", "ca_path", ca)
+    else:
+        set_global_config_value("servicefabric", "ca", "false")
 
     set_global_config_value("servicefabric", "endpoint", endpoint)
 
+
 def sf_get_ca_cert_info():
     az_config.config_parser.read(CONFIG_PATH)
-    ca_cert = az_config.get("servicefabric", "ca_path", fallback=None)
-    return ca_cert
+    use_ca = az_config.get("servicefabric", "ca", fallback=False)
+    if use_ca:
+        ca_cert = az_config.get("servicefabric", "ca_path", fallback=None)
+        return ca_cert
+    else:
+        return None
+
+def sf_get_aad_token():
+    from azure.cli.command_modules.sf._factory import cf_sf_client
+    sf_client = cf_sf_client(None)
+    aad_metadata = sf_client.get_aad_metadata()
+
+    if aad_metadata.type != "aad":
+        raise CLIError("Not AAD cluster")
+
+    aad_resource = aad_metadata.metadata
+
+#    TenantId = 'c15cfcea-02c1-40dc-8466-fbd0ee0b05d2'
+#    context = adal.AuthenticationContext('https://login.microsoftonline.com/' + TenantId)
+#    RESOURCE = '08ad9f61-229d-4d7d-a9e6-953e1a0f97ff'
+#    ClientId = 'b5e9b876-da41-42ba-ad5d-1e297c2a1f7f'
+
+    tenant_id = aad_resource.tenant
+    context = adal.AuthenticationContext(aad_resource.login + '/' + tenant_id)
+    cluster_id = aad_resource.cluster
+    client_id = aad_resource.client
+
+    code = context.acquire_user_code(cluster_id, client_id)
+    print(code['message'])
+    token = context.acquire_token_with_device_code(cluster_id, code, client_id)
+
+    print("Succeed! Token expires in: " + (str)(token['expiresIn']) +" seconds")
+    return token['accessToken']
 
 def sf_get_connection_endpoint():
     az_config.config_parser.read(CONFIG_PATH)
@@ -433,7 +478,7 @@ def sup_placement_policies(formatted_placement_policies):
     import ServicePlacementRequireDomainDistributionPolicyDescription
 
     r = None
-    if formatted_placement_policies:
+    if formatted_placement_policies is not None:
         r = []
         valid_policies = [
             "NonPartiallyPlaceService",
@@ -477,6 +522,49 @@ def sup_validate_move_cost(move_cost):
         if move_cost not in valid_costs:
             raise CLIError("Invalid move cost specified")
 
+def sup_stateful_flags(rep_restart_wait=None, quorum_loss_wait=None,
+                       standby_replica_keep=None):
+    f = 0
+    if rep_restart_wait is not None:
+        f += 1
+    if quorum_loss_wait is not None:
+        f += 2
+    if standby_replica_keep is not None:
+        f += 4
+    return f
+
+def sup_service_update_flags(target_rep_size=None, instance_count=None,
+                             rep_restart_wait=None,
+                             quorum_loss_wait=None,
+                             standby_rep_keep=None,
+                             min_rep_size=None,
+                             placement_constraints=None,
+                             placement_policy=None,
+                             correlation=None,
+                             metrics=None,
+                             move_cost=None):
+    f = 0
+    if (target_rep_size is not None) or (instance_count is not None):
+        f += 1
+    if rep_restart_wait is not None:
+        f += 2
+    if quorum_loss_wait is not None:
+        f += 4
+    if standby_rep_keep is not None:
+        f += 8
+    if min_rep_size is not None:
+        f += 16
+    if placement_constraints is not None:
+        f += 32
+    if placement_policy is not None:
+        f += 64
+    if correlation is not None:
+        f += 128
+    if metrics is not None:
+        f += 256
+    if move_cost is not None:
+        f += 512
+    return f
 
 def sf_create_service(app_name, name, type, stateful=False, stateless=False, # pylint: disable=R0913
                       singleton_scheme=False, named_scheme=False,
@@ -522,7 +610,7 @@ def sf_create_service(app_name, name, type, stateful=False, stateless=False, # p
     using an alignment affinity. Possible values include: 'Invalid', 'Affinity',
     'AlignedAffinity', 'NonAlignedAffinity'.
     :param str correlated_service: Name of the target service to correlate with.
-    :param str move_cost: Specifies the move cost for the service. Possible 
+    :param str move_cost: Specifies the move cost for the service. Possible
     values are: 'Zero', 'Low', 'Medium', 'High'.
     :param str activation_mode: The activation mode for the service package.
     Possible values include: 'SharedProcess', 'ExclusiveProcess'.
@@ -581,6 +669,8 @@ def sf_create_service(app_name, name, type, stateful=False, stateless=False, # p
     corre = sup_correlation_scheme(correlated_service, correlation)
     load_list = sup_load_metrics(load_metrics)
     place_policy = sup_placement_policies(placement_policy_list)
+    flags = sup_stateful_flags(replica_restart_wait, quorum_loss_wait,
+                               stand_by_replica_keep)
 
     # API weirdness where we both have to specify a move cost, and a indicate
     # the existence of a default move cost
@@ -601,7 +691,6 @@ def sf_create_service(app_name, name, type, stateful=False, stateless=False, # p
     if stateful:
         if instance_count is not None:
             CLIError("Cannot specify instance count for a stateful service")
-
         sd = StatefulServiceDescription(name, type, part_schema,
                                         target_replica_set_size,
                                         min_replica_set_size,
@@ -609,7 +698,7 @@ def sf_create_service(app_name, name, type, stateful=False, stateless=False, # p
                                         app_name, None, constraints,
                                         corre, load_list, place_policy,
                                         move_cost, move_cost_specified,
-                                        activation_mode, dns_name, None,
+                                        activation_mode, dns_name, flags,
                                         replica_restart_wait, quorum_loss_wait,
                                         stand_by_replica_keep)
 
@@ -629,7 +718,6 @@ def sf_create_service(app_name, name, type, stateful=False, stateless=False, # p
         if stand_by_replica_keep is not None:
             CLIError("Cannot specify standby replica keep duration for \
             stateless service")
-
         sd = StatelessServiceDescription(name, type, part_schema,
                                          instance_count, app_name, None,
                                          constraints, corre, load_list,
@@ -640,7 +728,6 @@ def sf_create_service(app_name, name, type, stateful=False, stateless=False, # p
     sf_client = cf_sf_client(None)
     sf_client.create_service(app_name, sd)
 
-    # TODO Verify flags do not need to be set
     # TODO Improve parameter set usage display and also validation
 
     # TODO Consider supporting initialization data for service create
@@ -707,12 +794,19 @@ def sf_update_service(name, stateless=False, stateful=False, constraints=None,
     if move_cost is not None:
         sup_validate_move_cost(move_cost)
 
+    flags = sup_service_update_flags(target_replica_set_size, instance_count,
+                                     replica_restart_wait, quorum_loss_wait,
+                                     stand_by_replica_keep,
+                                     min_replica_set_size, constraints,
+                                     place_policy, corre, load_list,
+                                     move_cost)
+
     sud = None
     if stateful:
         if instance_count is not None:
             CLIError("Cannot specify instance count for a stateful service")
 
-        sud = StatefulServiceUpdateDescription(None, constraints, corre,
+        sud = StatefulServiceUpdateDescription(flags, constraints, corre,
                                                load_list, place_policy,
                                                move_cost,
                                                target_replica_set_size,
@@ -738,7 +832,7 @@ def sf_update_service(name, stateless=False, stateful=False, constraints=None,
             CLIError("Cannot specify standby replica keep duration for \
             stateless service")
 
-        sud = StatelessServiceDescription(None, constraints, corre, load_list,
+        sud = StatelessServiceDescription(flags, constraints, corre, load_list,
                                           place_policy, move_cost,
                                           instance_count)
 
